@@ -2,6 +2,10 @@ import xml.etree.ElementTree
 import os
 import numpy as np
 import h5py
+import cv2
+import logger
+
+log = logger.get()
 
 
 def read_h5_data(h5_fname):
@@ -30,9 +34,10 @@ def write_h5_data(h5_fname, dataset):
 
 
 def get_dataset(folder):
-    h5fname = os.path.join(folder, 'dataset.h5')
-    if os.path.exists(h5fname):
-        return h5py.File(h5fname)
+    h5_fname = os.path.join(folder, 'dataset.h5')
+    cache = read_h5_data(h5_fname)
+    if cache:
+        return cache
     xml_fname = os.path.join(folder, 'TUD-Stadtmitte.xml')
     tree = xml.etree.ElementTree.parse(xml_fname).getroot()
     obj_data = {}
@@ -63,8 +68,8 @@ def get_dataset(folder):
 
                 print nframe, idx, h, w, x, y
 
-    print 'frame_start', frame_start
-    print 'frame_end', frame_end
+    log.info('frame_start: {}'.format(frame_start))
+    log.info('frame_end: {}'.format(frame_end))
 
     nframe = frame_end - frame_start + 1
     idx_map = []
@@ -84,6 +89,37 @@ def get_dataset(folder):
     idx_map = np.array(idx_map, dtype='uint8')
     frame_map = np.arange(frame_start, frame_end + 1)
 
+    log.info('Reading images')
+    im_height = None
+    im_width = None
+    im_channels = None
+    imgs = []
+    for frame in xrange(frame_start, frame_end + 1):
+        image_fname = os.path.join(folder,
+                                   'DaMultiview-seq{}.png'.format(frame))
+        log.info(image_fname)
+        img = cv2.imread(image_fname)
+        if im_height is None:
+            im_height = img.shape[0]
+            im_width = img.shape[1]
+            im_channels = img.shape[2]
+        imgs.append(img)
+
+    log.info('Assemble dataset')
+    images = np.zeros([len(imgs), im_height, im_width, im_channels],
+                      dtype='uint8')
+    for ii, img in enumerate(imgs):
+        images[ii] = img
+
+    dataset = {
+        'images': images,
+        'idx_map': idx_map,
+        'frame_map': frame_map
+    }
+
+    write_h5_data(h5_fname, dataset)
+
+    return dataset
 
 if __name__ == '__main__':
     folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
