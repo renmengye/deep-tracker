@@ -1,7 +1,7 @@
-import xml.etree.ElementTree
-import os
-import numpy as np
 import h5py
+import numpy as np
+import os
+import xml.etree.ElementTree
 
 
 def read_h5_data(h5_fname):
