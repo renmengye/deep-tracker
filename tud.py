@@ -43,8 +43,6 @@ def get_dataset(folder):
     obj_data = {}
     frame_start = None
     frame_end = None
-    min_idx = None
-    max_idx = None
     for frame in tree.findall('frame'):
         nframe = int(frame.attrib['number'])
         if frame_start is None:
