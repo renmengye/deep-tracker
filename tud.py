@@ -4,6 +4,31 @@ import numpy as np
 import h5py
 
 
+def read_h5_data(h5_fname):
+    """Read a dataset stored in H5."""
+    if os.path.exists(h5_fname):
+        log.info('Reading dataset from {}'.format(h5_fname))
+        h5f = h5py.File(h5_fname, 'r')
+        dataset = {}
+        for key in h5f.keys():
+            dataset[key] = h5f[key][:]
+            pass
+
+        return dataset
+
+    else:
+        return None
+
+
+def write_h5_data(h5_fname, dataset):
+    log.info('Writing dataset to {}'.format(h5_fname))
+    h5f = h5py.File(h5_fname, 'w')
+    for key in dataset.iterkeys():
+        h5f[key] = dataset[key]
+
+        pass
+
+
 def get_dataset(folder):
     h5fname = os.path.join(folder, 'dataset.h5')
     if os.path.exists(h5fname):
