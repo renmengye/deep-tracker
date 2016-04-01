@@ -32,7 +32,6 @@ def write_h5_data(h5_fname, dataset):
 
         pass
 
-
 def get_dataset(folder):
     h5_fname = os.path.join(folder, 'dataset.h5')
     cache = read_h5_data(h5_fname)
@@ -111,6 +110,7 @@ def get_dataset(folder):
 
     dataset = {
         'images': images,
+        'gt_bbox': data,
         'idx_map': idx_map,
         'frame_map': frame_map
     }
