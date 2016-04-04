@@ -29,8 +29,10 @@ def write_h5_data(h5_fname, dataset):
     h5f = h5py.File(h5_fname, 'w')
     for key in dataset.iterkeys():
         h5f[key] = dataset[key]
-
+        
         pass
+
+    h5f.close()
 
 def get_dataset(folder):
     h5_fname = os.path.join(folder, 'dataset.h5')
@@ -55,7 +57,7 @@ def get_dataset(folder):
                 idx = int(obj.attrib['id'])
                 for box in obj.findall('box'):
                     h = float(box.attrib['h'])
-                    w = float(box.attrib['h'])
+                    w = float(box.attrib['w'])
                     x = float(box.attrib['xc'])
                     y = float(box.attrib['yc'])
                 if idx in obj_data:

@@ -131,6 +131,8 @@ def batch_norm(x, n_out, phase_train, scope='bn', affine=True):
         gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
                             name='gamma', trainable=affine)
 
+        print x
+
         batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
         batch_mean.set_shape([n_out])
         batch_var.set_shape([n_out])
@@ -227,6 +229,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
 
             if use_bn[ii]:
                 # h[ii], bm, bv, em, ev = bn[ii](h[ii], phase_train)
+                print h[ii]
                 h[ii], bm, bv, em, ev = batch_norm(h[ii], out_ch, phase_train)
                 if model:
                     model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
