@@ -25,16 +25,16 @@ def read_h5_data(h5_fname):
 
 
 def write_h5_data(h5_fname, dataset):
+    """Write a dataset stored in H5."""
     log.info('Writing dataset to {}'.format(h5_fname))
     h5f = h5py.File(h5_fname, 'w')
     for key in dataset.iterkeys():
         h5f[key] = dataset[key]
         
-        pass
-
     h5f.close()
 
 def get_dataset(folder):
+    """Get TUD dataset."""
     h5_fname = os.path.join(folder, 'dataset.h5')
     cache = read_h5_data(h5_fname)
     if cache:
