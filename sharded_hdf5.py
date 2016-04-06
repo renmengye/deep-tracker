@@ -782,13 +782,12 @@ class ShardedFileWriter(object):
 
     def next(self):
         """Move to writing the next object."""
-
+        self._pos += 1
         if self._pos < self._num_objects:
             r = self._pos - self._shard * self._num_objects_per_shard
             if r == self._num_objects_per_shard:
                 self.next_file()
             i = self._pos
-            self._pos += 1
             return i
         else:
             raise Exception(
