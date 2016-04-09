@@ -413,7 +413,7 @@ class ShardedFileReader(object):
         if self._fh is not None:
             self._fh.close()
             self._fh = None
-        self._fh = h5py.File(self.file.get_fname(self._cur_fid), 'r')
+        # self._fh = h5py.File(self.file.get_fname(self._cur_fid), 'r')
         self._need_refresh = False
 
         pass
@@ -447,6 +447,8 @@ class ShardedFileReader(object):
                 if line_start == line_end - 1:
                     result[key] = self._fh[key][line_start]
                 else:
+                    # log.info(line_start)
+                    # log.info(line_end)
                     result[key] = self._fh[key][line_start: line_end]
 
         return result
