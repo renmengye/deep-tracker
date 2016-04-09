@@ -8,6 +8,13 @@ import sharded_hdf5 as sh
 
 log = logger.get()
 
+
+def add_3d_bbox(folder, split):
+    split += 'ing'
+    h5_fname = os.path.join(folder, split, 'dataset-{}'.format(seq)
+    3d_bbox_folder = os.path.join(folder, split, '3d_bbox')
+
+
 def get_dataset(folder, split):
     """Get KITTI dataset.
 

@@ -782,17 +782,13 @@ class ShardedFileWriter(object):
 
     def next(self):
         """Move to writing the next object."""
-        self._pos += 1
         if self._pos < self._num_objects:
+            self._pos += 1
             r = self._pos - self._shard * self._num_objects_per_shard
             if r == self._num_objects_per_shard:
                 self.next_file()
             i = self._pos
             return i
-        else:
-            raise Exception(
-                'Exceeded initialized capacity {}'.format(self._num_objects))
-            # raise StopIteration()
 
         pass
 
