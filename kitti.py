@@ -23,10 +23,9 @@ def get_dataset(folder, split):
         split: train or test.
 
     Returns:
-        dataset:
-            images: list of [T, H, W, 3], video sequence.
-            gt_bbox: list of [T, 4], groundtruth bounding box.
-            
+        dataset_file: ShardedFile object, use ShardedFileReader to read.
+        See matching_data for example.
+
     """
     # 'train' => 'training', 'test' => 'testing'
     split += 'ing'
@@ -45,7 +44,7 @@ def get_dataset(folder, split):
         label_folder = os.path.join(folder, split, 'label_02')
 
     # List the sequences
-    seq_list = [] 
+    seq_list = []
     for seq_num in os.listdir(left_folder):
         if seq_num.startswith('0'):
             seq_list.append(seq_num)
@@ -59,9 +58,9 @@ def get_dataset(folder, split):
 
     with sh.ShardedFileWriter(f_out, num_objects=len(seq_list)) as writer:
         for seq_num in pb.get_iter(seq_list):
-            
+
             seq_data = {}
-            
+
             if split == 'training':
                 label_fname = os.path.join(label_folder, seq_num + '.txt')
                 obj_data = {}
@@ -87,7 +86,7 @@ def get_dataset(folder, split):
                         else:
                             frame_start = min(frame_start, frame_no)
                             frame_end = max(frame_start, frame_no)
-                        
+
                         raw_data = {
                             'frame_no': frame_no,
                             'ins_no': ins_no,
@@ -120,13 +119,14 @@ def get_dataset(folder, split):
                 seq_data['gt_bbox'] = bbox
                 seq_data['idx_map'] = idx_map
                 seq_data['frame_map'] = frame_map
-            
+
             for camera, camera_folder in enumerate([left_folder, right_folder]):
                 if seq_num.startswith('0'):
                     seq_folder = os.path.join(camera_folder, seq_num)
                 else:
                     continue
-                seq_folder = os.path.join(folder, split, camera_folder, seq_num)
+                seq_folder = os.path.join(
+                    folder, split, camera_folder, seq_num)
                 image_list = os.listdir(seq_folder)
                 im_height = None
                 im_width = None
@@ -140,15 +140,15 @@ def get_dataset(folder, split):
                         im_height = img.shape[0]
                         im_width = img.shape[1]
                         images = np.zeros([num_frames, im_height, im_width, 3],
-                                dtype='uint8')
+                                          dtype='uint8')
                     images[frame_no] = img
 
                 seq_data['images_{}'.format(camera)] = images
-            
+
             writer.write(seq_data)
 
     return f_out
-    
+
     pass
 
 
