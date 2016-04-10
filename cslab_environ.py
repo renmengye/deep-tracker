@@ -14,4 +14,4 @@ import socket
 #         sys.path.insert(
 #             0, '/u/mren/code/img-count/third_party/tensorflow/_python_build')
 
-sys.path.insert(0, '~/.local/lib/python2.7/site-packages')
+sys.path.insert(0, '/u/rjliao/Projects/3rdParty/tensorflow/_python_build')

@@ -6,7 +6,8 @@ import numpy as np
 import logger
 
 from grad_clip_optim import GradientClipOptimizer
-from tud import get_dataset
+# from tud import get_dataset
+from kitti import get_dataset
 
 def get_device_fn(device):
 	"""Choose device for different ops."""
@@ -56,16 +57,6 @@ def build_tracking_model(opt, device='/cpu:0'):
 		cnn_pool = cnn_pool_size
 		cnn_act = [tf.nn.relu] * cnn_nlayer
 		cnn_use_bn = [use_bn] * cnn_nlayer
-
-		# if pretrain_ccnn:
-		#     h5f = h5py.File(pretrain_ccnn, 'r')
-		#     ccnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
-		#                     'b': h5f['cnn_b_{}'.format(ii)][:]}
-		#                    for ii in xrange(ccnn_nlayers)]
-		#     ccnn_frozen = True
-		# else:
-		#     ccnn_init_w = None
-		#     ccnn_frozen = False
 
 		cnn_model = nn.cnn(cnn_filter, cnn_channel, cnn_pool, cnn_act,
 		              cnn_use_bn, phase_train=phase_train, wd=weight_decay)
@@ -145,8 +136,9 @@ def next_batch(imgs, labels, idx_sample, batch_size, num_train):
 
 if __name__ == "__main__":
 
-	folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
-	device = '/gpu:0'
+	# folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
+	folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
+	device = '/gpu:3'
 	num_train = 100
 	max_iter = 1000	
 	batch_size = 10
@@ -155,10 +147,13 @@ if __name__ == "__main__":
 	snapshot_iter = 1000
 
 	# read data
-	dataset = get_dataset(folder)
+	# dataset = get_dataset(folder)
+	dataset = get_dataset(folder, 'train')
+
+	print dataset
 
 	# we are now focusing on the 3rd person
-	gt_bbox = dataset['gt_bbox'][2, :, :]
+	gt_bbox = dataset['gt_bbox']
 	imgs = dataset['images']
 	
 	train_imgs = imgs[0:num_train]
@@ -217,22 +212,5 @@ if __name__ == "__main__":
 
 		if step % snapshot_iter == 0:
 			saver.save(sess, 'my_deep_tracker', global_step=step)
-
-		if step % test_iter == 0:
-			test_loss = 0
-			num_test = test_imgs.shape[0]
-			num_test_iter = num_test / batch_size
-			print 'Number of test samples = %d, Number of test iters = %d' % (num_test, num_test_iter)
-
-			for tt in xrange(num_test_iter):
-				idx_start = (tt * batch_size) % num_test
-				batch_img, batch_box = next_batch(test_imgs, test_gt_box, idx_start, batch_size, num_test)
-
-				test_data = {tracking_model['imgs']: batch_img, tracking_model['gt_bbox']: batch_box[:, 0:4], tracking_model['phase_train']: False}
-				results = sess.run(tracking_model['loss'], feed_dict=test_data)
-
-				test_loss += results
-
-			print 'The test loss = %e' % (test_loss / num_test_iter)
 
 	sess.close()
