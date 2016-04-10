@@ -13,9 +13,13 @@ def crop_patch(image, bbox, patch_size, padding, padding_noise, center_noise,
     """Get a crop of the image.
     
     Args:
-    
+        image: [H, W, 3]
         bbox: [left, top, right, bottom] 
         patch_size: [H, W]
+        padding: float, mean padding
+        padding noise: float, uniform distribution range
+        center_noise: float, uniform distribution range
+        random: random object
     """
     left = bbox[0]
     top = bbox[1]
@@ -59,8 +63,8 @@ def get_dataset(folder, opt, split='train', seqs=None):
             center_noise: +/- noise of center shift (uniform), relative to size
             padding_noise: +/- noise of padding (uniform), relative to size
             padding_mean: mean of padding
-            num_ex_pos: number of positive examples per sequence
-            num_ex_neg: number of negative examples per sequence
+            num_ex_pos: number of positive examples per object
+            num_ex_neg: number of negative examples per object
             shuffle: shuffle the final dataset
 
         split: string, 'train': sequences 0 - 12, 'valid': sequences 13 - 20
@@ -105,16 +109,26 @@ def get_dataset(folder, opt, split='train', seqs=None):
             gt_bbox = seq_data['gt_bbox']
             num_obj = gt_bbox.shape[0]
             num_frames = gt_bbox.shape[1]
-            output_images = np.zeros([num_ex_neg + num_ex_pos,
-                                      2, patch_height, patch_width, 3],
-                                     dtype='uint8')
-            output_labels = np.zeros([num_ex_neg + num_ex_pos], dtype='uint8')
+            nneg = num_ex_neg * num_obj
+            npos = num_ex_pos * num_obj
+            output_images = np.zeros(
+                [nneg + npos, 2, patch_height, patch_width, 3],
+                dtype='uint8')
+            output_labels = np.zeros([nneg + npos], dtype='uint8')
             dataset_images.append(output_images)
             dataset_labels.append(output_labels)
 
-            for ii in xrange(num_ex_neg):
+            log.info('seq {}'.format(seq_num))
+            log.info('num obj {}'.format(num_obj))
+            log.info('num ex {}'.format(nneg + npos))
+
+            if num_obj < 2:
+                continue
+
+            for ii in xrange(nneg):
                 obj_id1 = 0
                 obj_id2 = 0
+
                 while obj_id1 == obj_id2:
                     obj_id1 = int(np.floor(random.uniform(0, num_obj)))
                     obj_id2 = int(np.floor(random.uniform(0, num_obj)))
@@ -144,7 +158,7 @@ def get_dataset(folder, opt, split='train', seqs=None):
                 output_labels[ii] = 0
                 pass
 
-            for ii in xrange(num_ex_pos):
+            for ii in xrange(npos):
                 frames = np.array([0])
                 while frames.shape[0] <= 1:
                     obj_id = int(np.floor(random.uniform(0, num_obj)))

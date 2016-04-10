@@ -29,7 +29,9 @@ def f_bce(y_out, y_gt):
 
 def get_model(opt, device='/cpu:0'):
     model = {}
-
+    inp_height = opt['inp_height']
+    inp_width = opt['inp_width']
+    inp_depth = opt['inp_depth']
     cnn_filter_size = opt['cnn_filter_size']
     cnn_depth = opt['cnn_depth']
     cnn_pool = opt['cnn_pool']
@@ -44,16 +46,17 @@ def get_model(opt, device='/cpu:0'):
 ############################
     with tf.device(get_device_fn(device)):
         x1 = tf.placeholder(
-            'float', [None, inp_height, inp_width, inp_channels], name='x1')
+            'float', [None, inp_height, inp_width, inp_depth], name='x1')
         x2 = tf.placeholder(
-            'float', [None, inp_height, inp_width, inp_channels], name='x2')
+            'float', [None, inp_height, inp_width, inp_depth], name='x2')
         phase_train = tf.placeholder('bool', name='phase_train')
         y_gt = tf.placeholder('float', [None], name='y_gt')
+        global_step = tf.Variable(0.0)
 
 ############################
 # Feature CNN definition
 ############################
-        cnn_channels = [inp_channels] + cnn_depth
+        cnn_channels = [inp_depth] + cnn_depth
         cnn_nlayers = len(cnn_filter_size)
         cnn_use_bn = [True] * cnn_nlayers
         cnn_act = [tf.nn.relu] * cnn_nlayers
@@ -82,11 +85,13 @@ def get_model(opt, device='/cpu:0'):
         f2 = tf.reshape(f2[-1], [-1, feat_dim])
         f_join = tf.concat(1, [f1, f2])
         y_out = mlp(f_join)[-1]
+        y_out = tf.reshape(y_out, [-1])
 
 ############################
 # Loss function
 ############################
         bce = f_bce(y_out, y_gt)
+        bce = tf.reduce_sum(bce)
         tf.add_to_collection('losses', bce)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
 
@@ -97,9 +102,8 @@ def get_model(opt, device='/cpu:0'):
             base_learn_rate, global_step, steps_per_learn_rate_decay,
             learn_rate_decay, staircase=True)
         eps = 1e-7
-        train_step = GradientClipOptimizer(
-            tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-            clip=clip_gradient).minimize(total_loss, global_step=global_step)
+        train_step = tf.train.AdamOptimizer(learn_rate, epsilon=eps).minimize(
+            total_loss, global_step=global_step)
 
 ############################
 # Computation nodes
