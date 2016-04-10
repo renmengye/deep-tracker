@@ -92,7 +92,7 @@ def _add_dataset_args(parser):
 
 
 def _add_model_args(parser):
-    kCnnFilterSize = '3,3,3,3'
+    kCnnFilterSize = '3,3,3,3,3,3,3,3'
     kCnnDepth = '16,16,32,32,64,64,96,96'
     kCnnPool = '1,2,1,2,1,2,1,2'
     kMlpDims = '256,128,1'
@@ -122,7 +122,7 @@ def _add_training_args(parser):
     kStepsPerTrainval = 100
     kStepsPerPlot = 50
     kStepsPerLog = 20
-    kBatchSize = 32
+    kBatchSize = 64
 
     # Training options
     parser.add_argument('--num_steps', default=kNumSteps, type=int)
@@ -250,6 +250,11 @@ def _get_ts_loggers(model_opt, restore_step=0):
         name='Accuracy',
         buffer_size=1,
         restore_step=restore_step)
+    loggers['step_time'] = TimeSeriesLogger(
+        os.path.join(logs_folder, 'step_time.csv'), 'step time',
+        name='Step Time',
+        buffer_size=1,
+        restore_step=restore_step)
 
     return loggers
 
@@ -368,9 +373,9 @@ if __name__ == '__main__':
         for bb in xrange(num_batch):
             _x1, _x2, _y = batch_iter.next()
             _feed_dict = {m['x1']: _x1, m['x2']: _x2,
-                          m['phase_train']: phase_train, m['y_gt']: _y,}
+                          m['phase_train']: phase_train, m['y_gt']: _y, }
             _r = _run_model(m, outputs, _feed_dict)
-            bat_sz = _x.shape[0]
+            bat_sz = _x1.shape[0]
 
             for key in _r.iterkeys():
                 if key in r:
@@ -400,7 +405,7 @@ if __name__ == '__main__':
 
         _start_time = time.time()
         _outputs = ['loss', 'train_step']
-        _feed_dict = {m['x1']: x1, m['x2']: x2, 
+        _feed_dict = {m['x1']: x1, m['x2']: x2,
                       m['phase_train']: True, m['y_gt']: y}
         r = _run_model(m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
@@ -431,10 +436,10 @@ if __name__ == '__main__':
         outputs_trainval = get_outputs_trainval()
 
         for _x1, _x2, _y in BatchIterator(num_ex_train,
-                                        batch_size=batch_size,
-                                        get_fn=get_batch_train,
-                                        cycle=True,
-                                        progress_bar=False):
+                                          batch_size=batch_size,
+                                          get_fn=get_batch_train,
+                                          cycle=True,
+                                          progress_bar=False):
             # Run validation stats
             if step % train_opt['steps_per_valid'] == 0:
                 log.info('Running validation')

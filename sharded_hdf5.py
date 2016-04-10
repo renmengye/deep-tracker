@@ -334,7 +334,7 @@ class ShardedFileReader(object):
                 raise Exception(ERR_MSG_MISSING_FILE.format(
                     idx, self.file.num_shards))
 
-        log.info('Check file success: {}'.format(self.file.file_prefix))
+        # log.info('Check file success: {}'.format(self.file.file_prefix))
 
         pass
 
@@ -344,7 +344,7 @@ class ShardedFileReader(object):
         Returns:
             file_index: list, end element id - 1 of each shard.
         """
-        log.info('Building index of file {}'.format(self.file.basename))
+        # log.info('Building index of file {}'.format(self.file.basename))
         file_index = []
         index = 0
         for shard_idx in xrange(self.file.num_shards):
@@ -365,7 +365,7 @@ class ShardedFileReader(object):
         Args:
             key_name: string, name of the key field.
         """
-        log.info('Building key index of file {}'.format(self.file.basename))
+        # log.info('Building key index of file {}'.format(self.file.basename))
         self._key_index = {}
         for shard_idx in xrange(self.file.num_shards):
             fname = self.file.get_fname(shard_idx)
