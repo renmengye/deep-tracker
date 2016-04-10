@@ -3,11 +3,6 @@ import cslab_environ
 from tensorflow.python import control_flow_ops
 import tensorflow as tf
 
-<<<<<<< HEAD
-#from utils import logger
-
-=======
->>>>>>> 34da6efd18655d70d9351200819260da1d8209a3
 import logger
 
 log = logger.get()
