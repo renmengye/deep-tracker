@@ -10,10 +10,6 @@ import cslab_environ
 import argparse
 import datetime
 import h5py
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.patches as patches
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle as pkl
@@ -22,7 +18,6 @@ import tensorflow as tf
 import time
 
 import logger
-import plot_utils as pu
 from batch_iter import BatchIterator
 from log_manager import LogManager
 from saver import Saver
@@ -50,8 +45,8 @@ def get_dataset(opt):
 
 def _get_batch_fn(dataset):
     def get_batch(idx):
-        x1_bat = dataset['image_0'][idx]
-        x2_bat = dataset['image_1'][idx]
+        x1_bat = dataset['images_0'][idx]
+        x2_bat = dataset['images_1'][idx]
         y_bat = dataset['labels'][idx]
         x1_bat, x2_bat, y_bat = preprocess(x1_bat, x2_bat, y_bat)
 
@@ -83,8 +78,8 @@ def _add_dataset_args(parser):
     kPadding = 0.2
     kPaddingNoise = 0.2
     kCenterNoise = 0.2
-    kNumExPos = 100
-    kNumExNeg = 100
+    kNumExPos = 10
+    kNumExNeg = 10
     parser.add_argument('--patch_height', default=kPatchHeight, type=int)
     parser.add_argument('--patch_width', default=kPatchWidth, type=int)
     parser.add_argument('--padding', default=kPadding, type=float)
@@ -135,7 +130,6 @@ def _add_training_args(parser):
     parser.add_argument('--steps_per_valid', default=kStepsPerValid, type=int)
     parser.add_argument('--steps_per_trainval',
                         default=kStepsPerTrainval, type=int)
-    parser.add_argument('--steps_per_plot', default=kStepsPerPlot, type=int)
     parser.add_argument('--steps_per_log', default=kStepsPerLog, type=int)
     parser.add_argument('--batch_size', default=kBatchSize, type=int)
     parser.add_argument('--results', default='../results')
@@ -143,7 +137,6 @@ def _add_training_args(parser):
     parser.add_argument('--localhost', default='localhost')
     parser.add_argument('--restore', default=None)
     parser.add_argument('--gpu', default=-1, type=int)
-    parser.add_argument('--num_samples_plot', default=10, type=int)
     parser.add_argument('--save_ckpt', action='store_true')
 
     pass
@@ -245,7 +238,7 @@ def _get_model_id(task_name):
     return model_id
 
 
-def _get_ts_loggers(model_opt, restore_step=0, debug_bn=False, debug_weights=False):
+def _get_ts_loggers(model_opt, restore_step=0):
     loggers = {}
     loggers['loss'] = TimeSeriesLogger(
         os.path.join(logs_folder, 'loss.csv'), ['train', 'valid'],
@@ -274,7 +267,7 @@ def _register_raw_logs(log_manager, log, model_opt, saver):
     pass
 
 
-def _get_num_batch_valid(dataset_name):
+def _get_num_batch_valid():
     return 10
 
 
@@ -342,20 +335,18 @@ if __name__ == '__main__':
     loggers = {}
     if train_opt['logs']:
         log_manager = LogManager(logs_folder)
-        loggers = _get_ts_loggers(model_opt, debug_bn=train_opt['debug_bn'],
-                                  debug_weights=train_opt['debug_weights'])
+        loggers = _get_ts_loggers(model_opt)
         _register_raw_logs(log_manager, log, model_opt, saver)
-        samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
         log.info('Visualization can be viewed at: {}'.format(_log_url))
 
     batch_size = args.batch_size
     log.info('Batch size: {}'.format(batch_size))
-    num_ex_train = dataset['train']['input'].shape[0]
+    num_ex_train = dataset['train']['labels'].shape[0]
     get_batch_train = _get_batch_fn(dataset['train'])
     log.info('Number of training examples: {}'.format(num_ex_train))
-    num_ex_valid = dataset['valid']['input'].shape[0]
+    num_ex_valid = dataset['valid']['labels'].shape[0]
     get_batch_valid = _get_batch_fn(dataset['valid'])
     log.info('Number of validation examples: {}'.format(num_ex_valid))
 
@@ -425,24 +416,19 @@ if __name__ == '__main__':
 
     def train_loop(step=0):
         """Train loop"""
-        if train_opt['has_valid']:
-            batch_iter_valid = BatchIterator(num_ex_valid,
-                                             batch_size=batch_size,
-                                             get_fn=get_batch_valid,
-                                             cycle=True,
-                                             progress_bar=False)
-            outputs_valid = get_outputs_valid()
-        num_batch_valid = _get_num_batch_valid(args.dataset)
+        batch_iter_valid = BatchIterator(num_ex_valid,
+                                         batch_size=batch_size,
+                                         get_fn=get_batch_valid,
+                                         cycle=True,
+                                         progress_bar=False)
+        outputs_valid = get_outputs_valid()
+        num_batch_valid = _get_num_batch_valid()
         batch_iter_trainval = BatchIterator(num_ex_train,
                                             batch_size=batch_size,
                                             get_fn=get_batch_train,
                                             cycle=True,
                                             progress_bar=False)
         outputs_trainval = get_outputs_trainval()
-        if train_opt['debug_bn']:
-            if train_opt['has_valid']:
-                outputs_valid.extend(get_outputs_bn())
-            outputs_trainval.extend(get_outputs_bn())
 
         for _x1, _x2, _y in BatchIterator(num_ex_train,
                                         batch_size=batch_size,
@@ -450,12 +436,11 @@ if __name__ == '__main__':
                                         cycle=True,
                                         progress_bar=False):
             # Run validation stats
-            if train_opt['has_valid']:
-                if step % train_opt['steps_per_valid'] == 0:
-                    log.info('Running validation')
-                    run_stats(step, num_batch_valid, batch_iter_valid,
-                              outputs_valid, write_log_valid, False)
-                    pass
+            if step % train_opt['steps_per_valid'] == 0:
+                log.info('Running validation')
+                run_stats(step, num_batch_valid, batch_iter_valid,
+                          outputs_valid, write_log_valid, False)
+                pass
 
             # Train stats
             if step % train_opt['steps_per_trainval'] == 0:
