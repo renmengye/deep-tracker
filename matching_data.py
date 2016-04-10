@@ -13,9 +13,13 @@ def crop_patch(image, bbox, patch_size, padding, padding_noise, center_noise,
     """Get a crop of the image.
     
     Args:
-    
+        image: [H, W, 3]
         bbox: [left, top, right, bottom] 
         patch_size: [H, W]
+        padding: float, mean padding
+        padding noise: float, uniform distribution range
+        center_noise: float, uniform distribution range
+        random: random object
     """
     left = bbox[0]
     top = bbox[1]
