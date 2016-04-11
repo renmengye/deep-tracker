@@ -17,9 +17,38 @@ def get_device_fn(device):
 
 	return _device_fn
 
+def compute_IOU(bboxA, bboxB):
+	"""Compute the Intersection Over Union.
+	Args:
+		bboxA: [n, 4] tensor; order is left, top, right, bottom
+		bboxB: [n, 4] tensor
+
+	Return:
+		IOU: [n, 1]
+	"""
+
+	x1A, y1A, x2A, y2A = tf.split(1, 4, bboxA)
+	x1B, y1B, x2B, y2B = tf.split(1, 4, bboxB)
+
+	# compute intersection
+	x1_max = tf.maximum(x1A, x1B)
+	y1_max = tf.maximum(y1A, y1B)
+	x2_min = tf.minimum(x2A, x2B)
+	y2_min = tf.minimum(y2A, y2B)
+
+	overlap_flag = tf.logical_and( tf.less(x1_max, x2_min), tf.less(y1_max, y2_min) )
+	overlap_area = tf.mul(tf.to_float(overlap_flag), tf.mul( x2_min - x1_max, y2_min - y1_max ) )
+
+	# compute union
+	areaA = tf.mul( x2A - x1A, y2A - y1A )
+	areaB = tf.mul( x2B - x1B, y2B - y1B )
+	union_area = areaA + areaB - overlap_area
+
+	return tf.div(overlap_area, union_area)
+
 def build_tracking_model(opt, device='/cpu:0'):
 	model = {}
-
+	
 	batch_size = opt['batch_size']
 	cnn_filter_size = opt['cnn_filter_size']
 	cnn_num_channel = opt['cnn_num_channel']
@@ -38,10 +67,13 @@ def build_tracking_model(opt, device='/cpu:0'):
 	with tf.device(get_device_fn(device)):
 		phase_train = tf.placeholder('bool')
 		imgs = tf.placeholder('float', [batch_size, height, width, img_num_channel])
-		gt_bbox = tf.placeholder('float', [batch_size, 5])
+		init_bbox = tf.placeholder('float', [1, 4])
+		gt_bbox = tf.placeholder('float', [batch_size, 4])
+		gt_score = tf.placeholder(tf.float32, [batch_size, 1])
 
 		model['imgs'] = imgs
 		model['gt_bbox'] = gt_bbox
+		model['gt_score'] = gt_score
 		model['phase_train'] = phase_train
 
 		# define a CNN model
@@ -66,9 +98,16 @@ def build_tracking_model(opt, device='/cpu:0'):
 		rnn_dim = cnn_channel[-1]	    
 		rnn_inp_dim = rnn_h * rnn_w * rnn_dim
 
+		# define a linear mapping: initial bbox -> hidden state
+		W_bbox = tf.Variable(tf.zeros([rnn_hidden_dim, 4]))
+		W_score = tf.Variable(tf.zeros([rnn_hidden_dim, 1]))
+
 		rnn_state = [None] * (batch_size + 1)
-		rnn_state[-1] = tf.zeros([1, rnn_hidden_dim * 2])
+		rnn_state[-1] = tf.concat(1, [tf.zeros([1, rnn_hidden_dim]), tf.matmul(init_bbox, W_bbox, False, True)])
 		rnn_hidden_feat = [None] * batch_size
+		predict_bbox = [None] * batch_size
+		predict_score = [None] * batch_size
+		IOU_score = [None] * batch_size
 
 		rnn_cell = nn.lstm(rnn_inp_dim, rnn_hidden_dim, wd=weight_decay)
 
@@ -78,25 +117,21 @@ def build_tracking_model(opt, device='/cpu:0'):
 			cnn_feat[tt] = tf.reshape(cnn_feat[tt], [1, rnn_inp_dim])
 			rnn_state[tt], _, _, _ = rnn_cell(cnn_feat[tt], rnn_state[tt - 1])
 			rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
+			
+			predict_bbox[tt] = tf.matmul(rnn_hidden_feat[tt], W_bbox)
+			predict_score[tt] = tf.matmul(rnn_hidden_feat[tt], W_score)
 
-		# define a MLP predicting the bounding box and flag
-		num_mlp_layers = len(mlp_hidden_dim)
-		mlp_dims = mlp_hidden_dim + [5]
-		mlp_act = [tf.tanh] * num_mlp_layers + [None]
-		mlp_dropout = None
-		# mlp_dropout = [1.0 - mlp_dropout_ratio] * num_ctrl_mlp_layers
+			IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[tt])
 
-		mlp = nn.mlp(mlp_dims, mlp_act, add_bias=True, dropout_keep=mlp_dropout, phase_train=phase_train, wd=weight_decay)
+		model['predict_bbox'] = predict_bbox
+		model['predict_score'] = predict_score
 
-		rnn_hidden_feat = tf.concat(0, rnn_hidden_feat)
-		predict_bbox = mlp(rnn_hidden_feat)
-		predict_bbox = predict_bbox[-1]
-		model['predict_bbox'] = predict_bbox[:, 0:3]
-		model['predict_score'] = predict_bbox[:, 4]
+		# IOU loss + cross-entropy loss
+		IOU_loss = tf.reduce_sum(gt_score * (1 - IOU_score))
+		cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score))
 
-		# we need to try different loss functions here
-		l2_loss = tf.nn.l2_loss(predict_bbox - gt_bbox)
-		model['loss'] = l2_loss
+		model['IOU_loss'] = IOU_loss
+		model['CE_loss'] = cross_entropy
 		
 		global_step = tf.Variable(0.0)
 		eps = 1e-7

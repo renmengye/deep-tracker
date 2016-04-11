@@ -11,25 +11,29 @@ import logger
 
 from copy import deepcopy
 from build_deep_tracker import build_tracking_model
+from build_deep_tracker import compute_IOU
 
 # from tud import get_dataset
 from kitti import get_dataset
 
-def next_batch(imgs, labels, idx_sample, batch_size, num_train):
+def next_batch(imgs, labels, scores, idx_sample, batch_size, num_train):
 	if idx_sample >= num_train:
 		raise NameError('Incorrect index of sample')
 	
 	current_batch_img = []
 	current_batch_label = []
+	current_batch_score = []
 
 	if idx_sample + batch_size > num_train:
 		current_batch_img = [ imgs[idx_sample : num_train], imgs[0 : batch_size - (num_train - idx_sample)] ]
 		current_batch_label = [ labels[idx_sample : num_train], labels[0 : batch_size - (num_train - idx_sample)] ]
+		current_batch_score = [ scores[idx_sample : num_train], scores[0 : batch_size - (num_train - idx_sample)] ]
 	else:
 		current_batch_img = imgs[idx_sample : idx_sample + batch_size]
 		current_batch_label = labels[idx_sample : idx_sample + batch_size]
+		current_batch_score = scores[idx_sample : idx_sample + batch_size]
 
-	return current_batch_img, current_batch_label
+	return current_batch_img, current_batch_label, current_batch_score
 
 if __name__ == "__main__":
 
@@ -96,37 +100,28 @@ if __name__ == "__main__":
 					# prepare input and output
 					train_imgs = []
 					train_gt_box = []
+					train_gt_score = []
 					skip_flag = True
 					
 					for ii in xrange(num_imgs):				
 						# gt_bbox = [left top right bottom flag]
-						if np.sum(gt_bbox[obj, ii, 0:3]) > 0.0:
+						if gt_bbox[obj, ii, 4] == 1:
 							# if object disappears, then using the last visible bbox for training
-							x1 = np.floor(gt_bbox[obj, ii, 0])
-							y1 = np.floor(gt_bbox[obj, ii, 1])
-							x2 = np.floor(gt_bbox[obj, ii, 2])
-							y2 = np.floor(gt_bbox[obj, ii, 3])
 							skip_flag = False
 
 						if skip_flag == False:
-							# extract ROI as input
-							ROI_img = raw_imgs[ii, y1:y2, x1:x2, :]
-							
-							train_imgs.append(cv2.resize(ROI_img, (ROI_width, ROI_height), interpolation = cv2.INTER_CUBIC))
+							# extract raw image as input
+							train_imgs.append(raw_imgs[ii, :, :])
 
-							# extract normalized relative motion as output
-							if ii == 0:
-								train_gt_box.append(np.array([0, 0, 0, 0, gt_bbox[obj, ii, 4]]))
-							else:
-								tmp_box = deepcopy(gt_bbox[obj, ii, 0:5])
-								tmp_box[0:4] -= gt_bbox[obj, ii-1, 0:4]
+							# extract bbox and score as output
+							tmp_box = deepcopy(gt_bbox[obj, ii, 0:4])
+							tmp_box[0] = tmp_box[0] / raw_imgs.shape[2]
+							tmp_box[1] = tmp_box[1] / raw_imgs.shape[1]
+							tmp_box[2] = tmp_box[2] / raw_imgs.shape[2]
+							tmp_box[3] = tmp_box[3] / raw_imgs.shape[1]
+							train_gt_box.append(tmp_box)
 
-								# tmp_box[0] = tmp_box[0] / raw_imgs.shape[2]
-								# tmp_box[1] = tmp_box[1] / raw_imgs.shape[1]
-								# tmp_box[2] = tmp_box[2] / raw_imgs.shape[2]
-								# tmp_box[3] = tmp_box[3] / raw_imgs.shape[1]
-								
-								train_gt_box.append(tmp_box)
+							train_gt_score.append(gt_bbox[obj, ii, 4])
 
 					# training for current sequence
 					num_train_imgs = len(train_imgs)
@@ -134,10 +129,14 @@ if __name__ == "__main__":
 
 					for step in xrange(inner_max_iter):
 						idx_start = (step * batch_size) % num_train_imgs
-						batch_img, batch_box = next_batch(train_imgs, train_gt_box, idx_start, batch_size, num_train_imgs)
+						batch_img, batch_box, batch_score = next_batch(train_imgs, train_gt_box, train_gt_score, idx_start, batch_size, num_train_imgs)
 
 						node_list = [tracking_model[i] for i in nodes_run]
-						feed_data = {tracking_model['imgs']: batch_img, tracking_model['gt_bbox']: batch_box, tracking_model['phase_train']: True}
+						feed_data = {tracking_model['imgs']: batch_img, 
+									 tracking_model['init_bbox']: batch_box[0], 
+									 tracking_model['gt_bbox']: batch_box, 
+									 tracking_model['gt_score']: batch_score, 
+									 tracking_model['phase_train']: True}
 
 						results = sess.run(node_list, feed_dict=feed_data)
 
