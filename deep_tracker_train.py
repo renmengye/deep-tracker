@@ -55,9 +55,9 @@ if __name__ == "__main__":
     # setting model
     opt_tracking = {}
     opt_tracking['batch_size'] = batch_size
-    opt_tracking['cnn_filter_size'] = [5, 5, 5]
-    opt_tracking['cnn_num_channel'] = [64, 64, 32]
-    opt_tracking['cnn_pool_size'] = [2, 2, 2]
+    opt_tracking['cnn_filter_size'] = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+    opt_tracking['cnn_num_channel'] = [8, 8, 16, 16, 32, 32, 32, 32, 64, 64]
+    opt_tracking['cnn_pool_size'] = [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
     opt_tracking['img_channel'] = 3
     opt_tracking['use_batch_norm']= True
     opt_tracking['img_height'] = height
@@ -116,10 +116,11 @@ if __name__ == "__main__":
 
                             # extract bbox and score as output
                             tmp_box = deepcopy(gt_bbox[obj, ii, 0:4])
-                            tmp_box[0] = tmp_box[0] / raw_imgs.shape[2]
-                            tmp_box[1] = tmp_box[1] / raw_imgs.shape[1]
-                            tmp_box[2] = tmp_box[2] / raw_imgs.shape[2]
-                            tmp_box[3] = tmp_box[3] / raw_imgs.shape[1]
+                            tmp_box[0] = tmp_box[0] / raw_imgs.shape[2] * width
+                            tmp_box[1] = tmp_box[1] / raw_imgs.shape[1] * height
+                            tmp_box[2] = tmp_box[2] / raw_imgs.shape[2] * width
+                            tmp_box[3] = tmp_box[3] / raw_imgs.shape[1] * height
+
                             train_gt_box.append(tmp_box)
 
                             train_gt_score.append(gt_bbox[obj, ii, 4])

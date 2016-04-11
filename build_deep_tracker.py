@@ -6,7 +6,7 @@ from grad_clip_optim import GradientClipOptimizer
 
 def get_device_fn(device):
     """Choose device for different ops."""
-    OPS_ON_CPU = set(['ResizeBilinear', 'ResizeBilinearGrad', 'Mod', 'CumMin', 'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense', 'BatchMatMul'])
+    OPS_ON_CPU = set(['ResizeBilinear', 'Print', 'ResizeBilinearGrad', 'Mod', 'CumMin', 'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense', 'BatchMatMul'])
 
     def _device_fn(op):
         if op.type in OPS_ON_CPU:
@@ -45,6 +45,18 @@ def compute_IOU(bboxA, bboxB):
     union_area = areaA + areaB - overlap_area
 
     return tf.div(overlap_area, union_area)
+
+def transform_box(bbox, height, width):
+    x1, y1, x2, y2 = tf.split(1, 4, bbox)
+    
+    y2 = tf.exp(y2) * height
+    x2 = tf.exp(x2) * width
+    x1 -= x2/2
+    y1 -= y2/2
+
+    bbox_out = tf.concat(1, [x1, y1, x2, y2])
+
+    return bbox_out
 
 def build_tracking_model(opt, device='/cpu:0'):
     model = {}
@@ -121,14 +133,15 @@ def build_tracking_model(opt, device='/cpu:0'):
             
         predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat), W_bbox)
         predict_score = tf.matmul(tf.concat(0, rnn_hidden_feat), W_score)
-
+        
+        predict_bbox = transform_box(predict_bbox, height, width)
         IOU_score = compute_IOU(predict_bbox, gt_bbox)
 
         model['predict_bbox'] = predict_bbox
         model['predict_score'] = predict_score
 
-        # IOU loss + cross-entropy loss
-        IOU_loss = tf.reduce_sum(gt_score * (- IOU_score))
+        # IOU loss + cross-entropy loss        
+        IOU_loss = tf.reduce_sum(tf.Print(gt_score, [gt_score]) * (- IOU_score))
         cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score))
 
         model['IOU_loss'] = IOU_loss
