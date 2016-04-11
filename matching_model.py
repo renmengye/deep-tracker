@@ -90,10 +90,19 @@ def get_model(opt, device='/cpu:0'):
 ############################
 # Loss function
 ############################
+        num_ex = tf.shape(y_gt)[0]
+        num_ex_f = tf.to_float(num_ex)
         bce = f_bce(y_out, y_gt)
-        bce = tf.reduce_sum(bce)
+        bce = tf.reduce_sum(bce) / num_ex_f
         tf.add_to_collection('losses', bce)
         total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+
+############################
+# Statistics
+############################
+        y_out_thresh = tf.to_float(y_out > 0.5)
+        acc = tf.reduce_sum(
+            tf.to_float(tf.equal(y_out_thresh, y_gt))) / num_ex_f
 
 ####################
 # Optimizer
@@ -111,8 +120,10 @@ def get_model(opt, device='/cpu:0'):
         model['x1'] = x1
         model['x2'] = x2
         model['y_gt'] = y_gt
+        model['phase_train'] = phase_train
         model['y_out'] = y_out
         model['loss'] = total_loss
+        model['acc'] = acc
         model['learn_rate'] = learn_rate
         model['train_step'] = train_step
 

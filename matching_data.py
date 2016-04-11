@@ -118,9 +118,9 @@ def get_dataset(folder, opt, split='train', seqs=None):
             dataset_images.append(output_images)
             dataset_labels.append(output_labels)
 
-            log.info('seq {}'.format(seq_num))
-            log.info('num obj {}'.format(num_obj))
-            log.info('num ex {}'.format(nneg + npos))
+            # log.info('seq {}'.format(seq_num))
+            # log.info('num obj {}'.format(num_obj))
+            # log.info('num ex {}'.format(nneg + npos))
 
             if num_obj < 2:
                 continue
