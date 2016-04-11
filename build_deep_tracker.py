@@ -66,14 +66,15 @@ def build_tracking_model(opt, device='/cpu:0'):
 
 	with tf.device(get_device_fn(device)):
 		phase_train = tf.placeholder('bool')
-		imgs = tf.placeholder('float', [batch_size, height, width, img_num_channel])
-		init_bbox = tf.placeholder('float', [1, 4])
-		gt_bbox = tf.placeholder('float', [batch_size, 4])
+		imgs = tf.placeholder(tf.float32, [batch_size, height, width, img_num_channel])
+		init_bbox = tf.placeholder(tf.float32, [1, 4])
+		gt_bbox = tf.placeholder(tf.float32, [batch_size, 4])
 		gt_score = tf.placeholder(tf.float32, [batch_size, 1])
 
 		model['imgs'] = imgs
 		model['gt_bbox'] = gt_bbox
 		model['gt_score'] = gt_score
+		model['init_bbox'] = init_bbox
 		model['phase_train'] = phase_train
 
 		# define a CNN model
@@ -99,14 +100,14 @@ def build_tracking_model(opt, device='/cpu:0'):
 		rnn_inp_dim = rnn_h * rnn_w * rnn_dim
 
 		# define a linear mapping: initial bbox -> hidden state
-		W_bbox = tf.Variable(tf.zeros([rnn_hidden_dim, 4]))
-		W_score = tf.Variable(tf.zeros([rnn_hidden_dim, 1]))
+		W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.01))
+		W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.01))
 
 		rnn_state = [None] * (batch_size + 1)
-		rnn_state[-1] = tf.concat(1, [tf.zeros([1, rnn_hidden_dim]), tf.matmul(init_bbox, W_bbox, False, True)])
+		rnn_state[-1] = tf.concat(1, [tf.zeros([1, rnn_hidden_dim], tf.float32), tf.matmul(init_bbox, W_bbox, False, True)])
 		rnn_hidden_feat = [None] * batch_size
-		predict_bbox = [None] * batch_size
-		predict_score = [None] * batch_size
+		predict_bbox = tf.zeros([batch_size, 4])
+		predict_score = tf.zeros([batch_size, 1])
 		IOU_score = [None] * batch_size
 
 		rnn_cell = nn.lstm(rnn_inp_dim, rnn_hidden_dim, wd=weight_decay)
@@ -118,10 +119,10 @@ def build_tracking_model(opt, device='/cpu:0'):
 			rnn_state[tt], _, _, _ = rnn_cell(cnn_feat[tt], rnn_state[tt - 1])
 			rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
 			
-			predict_bbox[tt] = tf.matmul(rnn_hidden_feat[tt], W_bbox)
-			predict_score[tt] = tf.matmul(rnn_hidden_feat[tt], W_score)
+		predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat), W_bbox)
+		predict_score = tf.matmul(tf.concat(0, rnn_hidden_feat), W_score)
 
-			IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[tt])
+		IOU_score = compute_IOU(predict_bbox, gt_bbox)
 
 		model['predict_bbox'] = predict_bbox
 		model['predict_score'] = predict_score
@@ -143,7 +144,7 @@ def build_tracking_model(opt, device='/cpu:0'):
 
 		train_step = GradientClipOptimizer(
 			tf.train.AdamOptimizer(learn_rate, epsilon=eps),
-			clip=1.0).minimize(l2_loss, global_step=global_step)
+			clip=1.0).minimize(IOU_loss + cross_entropy, global_step=global_step)
 		model['train_step'] = train_step
 
 	return model

@@ -45,8 +45,8 @@ if __name__ == "__main__":
 	batch_size = 10  	# sequence length for training
 	display_iter = 10
 	snapshot_iter = 1000
-	ROI_height = 64
-	ROI_width = 64
+	height = 128
+	width = 448
 
 	# read data
 	# dataset = get_dataset(folder)
@@ -60,8 +60,8 @@ if __name__ == "__main__":
 	opt_tracking['cnn_pool_size'] = [2, 2, 2]
 	opt_tracking['img_channel'] = 3
 	opt_tracking['use_batch_norm']= True
-	opt_tracking['img_height'] = ROI_height
-	opt_tracking['img_width'] = ROI_width
+	opt_tracking['img_height'] = height
+	opt_tracking['img_width'] = width
 	opt_tracking['weight_decay'] = 1.0e-5
 	opt_tracking['rnn_hidden_dim'] = 100
 	opt_tracking['mlp_hidden_dim'] = [100, 100]
@@ -74,7 +74,8 @@ if __name__ == "__main__":
 	sess = tf.Session()
 	sess.run(tf.initialize_all_variables())
 	saver = tf.train.Saver()
-	nodes_run = ['train_step', 'loss', 'predict_bbox']
+	nodes_run = ['train_step', 'IOU_loss', 'CE_loss', 'predict_bbox', 'predict_score']
+	# nodes_run = ['predict_bbox', 'predict_score']
 
 	with sh.ShardedFileReader(dataset) as reader:		
 		# training 
@@ -111,7 +112,7 @@ if __name__ == "__main__":
 
 						if skip_flag == False:
 							# extract raw image as input
-							train_imgs.append(raw_imgs[ii, :, :])
+							train_imgs.append(cv2.resize(raw_imgs[ii, :, :], (width, height), interpolation = cv2.INTER_CUBIC))
 
 							# extract bbox and score as output
 							tmp_box = deepcopy(gt_bbox[obj, ii, 0:4])
@@ -133,9 +134,9 @@ if __name__ == "__main__":
 
 						node_list = [tracking_model[i] for i in nodes_run]
 						feed_data = {tracking_model['imgs']: batch_img, 
-									 tracking_model['init_bbox']: batch_box[0], 
+									 tracking_model['init_bbox']: [batch_box[0]], 
 									 tracking_model['gt_bbox']: batch_box, 
-									 tracking_model['gt_score']: batch_score, 
+									 tracking_model['gt_score']: zip(*[batch_score]), 
 									 tracking_model['phase_train']: True}
 
 						results = sess.run(node_list, feed_dict=feed_data)
@@ -144,8 +145,11 @@ if __name__ == "__main__":
 						for rr, name in zip(results, nodes_run):
 							results_dict[name] = rr
 
+						# print results_dict['predict_bbox']
+						# print results_dict['predict_score']
+
 						if step % display_iter == 0:
-							print "Train Iter = %06d || Loss = %e" % (global_train_step+1, results_dict['loss'])
+							print "Train Iter = %06d || Loss = %e" % (global_train_step+1, results_dict['IOU_loss'])
 
 						if (global_train_step+1) % snapshot_iter == 0:
 							saver.save(sess, 'my_deep_tracker.ckpt', global_step=step)
