@@ -87,7 +87,7 @@ def _get_batch_fn(dataset):
     return get_batch
 
 
-def _run_model(m, names, feed_dict):
+def _run_model(sess, m, names, feed_dict):
     symbol_list = [m[r] for r in names]
     results = sess.run(symbol_list, feed_dict=feed_dict)
     results_dict = {}
@@ -456,7 +456,7 @@ if __name__ == '__main__':
             _x1, _x2, _y = batch_iter.next()
             _feed_dict = {m['x1']: _x1, m['x2']: _x2,
                           m['phase_train']: phase_train, m['y_gt']: _y, }
-            _r = _run_model(m, outputs, _feed_dict)
+            _r = _run_model(sess, m, outputs, _feed_dict)
             bat_sz = _x1.shape[0]
 
             for key in _r.iterkeys():
@@ -489,7 +489,7 @@ if __name__ == '__main__':
         _outputs = ['loss', 'train_step']
         _feed_dict = {m['x1']: x1, m['x2']: x2,
                       m['phase_train']: True, m['y_gt']: y}
-        r = _run_model(m, _outputs, _feed_dict)
+        r = _run_model(sess, m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
 
         # Print statistics.
