@@ -26,6 +26,7 @@ from time_series_logger import TimeSeriesLogger
 
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 import matching_data as data
@@ -151,7 +152,7 @@ def _add_training_args(parser):
     kStepsPerCkpt = 1000
     kStepsPerValid = 250
     kStepsPerTrainval = 100
-    kStepsPerPlot = 50
+    kStepsPerPlot = 100
     kStepsPerLog = 20
     kBatchSize = 64
 
@@ -161,6 +162,7 @@ def _add_training_args(parser):
     parser.add_argument('--steps_per_valid', default=kStepsPerValid, type=int)
     parser.add_argument('--steps_per_trainval',
                         default=kStepsPerTrainval, type=int)
+    parser.add_argument('--steps_per_plot', default=kStepsPerPlot, type=int)
     parser.add_argument('--steps_per_log', default=kStepsPerLog, type=int)
     parser.add_argument('--batch_size', default=kBatchSize, type=int)
     parser.add_argument('--results', default='../results')
@@ -526,6 +528,11 @@ if __name__ == '__main__':
                 log.info('Running train validation')
                 run_stats(step, num_batch_valid, batch_iter_trainval,
                           outputs_trainval, write_log_trainval, True)
+                pass
+
+            # Plot samples
+            if step % train_opt['steps_per_plot'] == 0:
+                run_samples()
                 pass
 
             # Train step
