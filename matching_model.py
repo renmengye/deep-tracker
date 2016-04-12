@@ -36,6 +36,7 @@ def get_model(opt, device='/cpu:0'):
     cnn_depth = opt['cnn_depth']
     cnn_pool = opt['cnn_pool']
     mlp_dims = opt['mlp_dims']
+    mlp_dropout = opt['mlp_dropout']
     wd = opt['weight_decay']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay = opt['learn_rate_decay']
@@ -73,8 +74,9 @@ def get_model(opt, device='/cpu:0'):
 ############################
         mlp_nlayers = len(mlp_dims)
         mlp_dims = [2 * feat_dim] + mlp_dims
+        mlp_dropout_keep = [1 - mlp_dropout] * mlp_nlayers
         mlp_act = [tf.nn.relu] * (mlp_nlayers - 1) + [tf.sigmoid]
-        mlp = nn.mlp(mlp_dims, mlp_act)
+        mlp = nn.mlp(mlp_dims, mlp_act, dropout_keep=mlp_dropout_keep)
 
 ############################
 # Computation graph

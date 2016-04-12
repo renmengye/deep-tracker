@@ -128,6 +128,7 @@ def _add_model_args(parser):
     kCnnDepth = '16,16,32,32,64,64,96,96'
     kCnnPool = '1,2,1,2,1,2,1,2'
     kMlpDims = '256,128,1'
+    kMlpDropout = 0
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3
     kStepsPerLearnRateDecay = 5000
@@ -137,6 +138,7 @@ def _add_model_args(parser):
     parser.add_argument('--cnn_depth', default=kCnnDepth)
     parser.add_argument('--cnn_pool', default=kCnnPool)
     parser.add_argument('--mlp_dims', default=kMlpDims)
+    parser.add_argument('--mlp_dropout', default=kMlpDropout)
     parser.add_argument('--weight_decay', default=kWeightDecay, type=float)
     parser.add_argument('--base_learn_rate', default=kBaseLearnRate)
     parser.add_argument('--learn_rate_decay',
@@ -206,6 +208,7 @@ def _make_model_opt(args):
         'cnn_pool': cnn_pool_list,
         'cnn_depth': cnn_depth_list,
         'mlp_dims': mlp_dim_list,
+        'mlp_dropout': args.mlp_dropout,
         'rnd_hflip': rnd_hflip,
         'rnd_vflip': rnd_vflip,
         'rnd_transpose': rnd_transpose,
