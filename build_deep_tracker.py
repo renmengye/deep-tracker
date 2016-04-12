@@ -1,3 +1,5 @@
+from __future__ import division
+
 import tensorflow as tf
 import nnlib as nn
 import numpy as np
@@ -47,12 +49,17 @@ def compute_IOU(bboxA, bboxB):
     return tf.div(overlap_area, union_area)
 
 def transform_box(bbox, height, width):
-    x1, y1, x2, y2 = tf.split(1, 4, bbox)
+    x, y, h, w = tf.split(1, 4, bbox)
     
-    y2 = tf.exp(y2) * height
-    x2 = tf.exp(x2) * width
-    x1 -= x2/2
-    y1 -= y2/2
+    h = tf.exp(h) * height
+    w = tf.exp(w) * width
+    x = (x + 1) * width/2
+    y = (y + 1) * height/2
+    
+    x1 = x - w/2
+    y1 = y - h/2
+    x2 = x + w/2
+    y2 = y + h/2 
 
     bbox_out = tf.concat(1, [x1, y1, x2, y2])
 
@@ -106,8 +113,8 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         # define a RNN(LSTM) model
         cnn_subsample = np.array(cnn_pool).prod()
-        rnn_h = height / cnn_subsample
-        rnn_w = width / cnn_subsample
+        rnn_h = int(height / cnn_subsample)
+        rnn_w = int(width / cnn_subsample)
         rnn_dim = cnn_channel[-1]       
         rnn_inp_dim = rnn_h * rnn_w * rnn_dim
 
@@ -132,7 +139,7 @@ def build_tracking_model(opt, device='/cpu:0'):
             rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
             
         predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat), W_bbox)
-        predict_score = tf.matmul(tf.concat(0, rnn_hidden_feat), W_score)
+        predict_score = tf.sigmoid(tf.matmul(tf.concat(0, rnn_hidden_feat), W_score))
         
         predict_bbox = transform_box(predict_bbox, height, width)
         IOU_score = compute_IOU(predict_bbox, gt_bbox)
@@ -141,8 +148,8 @@ def build_tracking_model(opt, device='/cpu:0'):
         model['predict_score'] = predict_score
 
         # IOU loss + cross-entropy loss        
-        IOU_loss = tf.reduce_sum(tf.Print(gt_score, [gt_score]) * (- IOU_score))
-        cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score))
+        IOU_loss = tf.reduce_sum(gt_score * (-IOU_score)) / batch_size
+        cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / batch_size
 
         model['IOU_loss'] = IOU_loss
         model['CE_loss'] = cross_entropy
