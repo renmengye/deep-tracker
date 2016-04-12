@@ -24,7 +24,7 @@ from build_deep_tracker import compute_IOU
 # from tud import get_dataset
 from kitti import get_dataset
 
-def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, num_row, num_col):
+def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col):
     f, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
 
     for ii in xrange(num_row):
@@ -38,7 +38,7 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, num_row, num_col):
                     pred_bbox[idx][2] - pred_bbox[idx][0],
                     pred_bbox[idx][3] - pred_bbox[idx][1],
                     fill=False,
-                    color='g'))
+                    color='b'))
 
             axarr[ii, jj].add_patch(patches.Rectangle(
                     (gt_bbox[idx][0], gt_bbox[idx][1]),
@@ -47,8 +47,12 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, num_row, num_col):
                     fill=False,
                     color='r'))
 
+            axarr[ii, jj].text(0, 0, ("%5.2f" % iou[idx]),
+               color=(0, 0, 0), size=8)
+
     plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=80)
+    plt.close('all')
 
 def next_batch(imgs, labels, scores, idx_sample, batch_size, num_train):
     
@@ -60,6 +64,52 @@ def next_batch(imgs, labels, scores, idx_sample, batch_size, num_train):
     current_batch_score = scores[idx_sample : idx_sample + batch_size]
 
     return current_batch_img, current_batch_label, current_batch_score
+
+def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox):
+
+    count_draw = 0
+    idx_draw_frame = 0
+    skip_empty = True
+    draw_imgs = []
+    draw_gt_box = []
+
+    while count_draw < batch_size:
+        if draw_raw_gt_bbox[0, idx_draw_frame, 4] == 1:
+            skip_empty = False
+
+        if not skip_empty:
+            draw_imgs.append(cv2.resize(draw_raw_imgs[idx_draw_frame, :, :], (width, height), interpolation = cv2.INTER_CUBIC))
+
+            tmp_box = draw_raw_gt_bbox[0, idx_draw_frame, :4]
+            tmp_box[0] = tmp_box[0] / draw_raw_imgs.shape[2] * width
+            tmp_box[1] = tmp_box[1] / draw_raw_imgs.shape[1] * height
+            tmp_box[2] = tmp_box[2] / draw_raw_imgs.shape[2] * width
+            tmp_box[3] = tmp_box[3] / draw_raw_imgs.shape[1] * height
+
+            draw_gt_box.append(tmp_box)
+            count_draw += 1
+
+        idx_draw_frame += 1
+
+    return draw_imgs, draw_gt_box
+
+def draw_sequence(idx, draw_img_name, reader, tracking_model, sess):
+    
+    draw_data = reader[idx]
+    draw_raw_imgs = draw_data['images_0']
+    draw_raw_gt_bbox = draw_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
+
+    draw_imgs, draw_gt_box = collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox)
+
+    feed_data = {tracking_model['imgs']: draw_imgs, 
+             tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
+             tracking_model['gt_bbox']: draw_gt_box,                                     
+             tracking_model['phase_train']: False}
+
+    draw_pred_bbox, draw_IOU_score = sess.run([tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
+
+    plot_frame_with_bbox(draw_img_name, draw_imgs, draw_pred_bbox, draw_gt_box, draw_IOU_score, 8, 2)
+
 
 if __name__ == "__main__":
 
@@ -80,14 +130,38 @@ if __name__ == "__main__":
     logs_folder = '/u/rjliao/public_html/results'
     logs_folder = os.path.join(logs_folder, model_id)
 
-    logp_logger = TimeSeriesLogger(
-        os.path.join(logs_folder, 'loss.csv'),
-        labels=['IOU loss', 'CE loss'],
-        name='Traning Loss',
+    logp_logger_IOU = TimeSeriesLogger(
+        os.path.join(logs_folder, 'IOU_loss.csv'),
+        labels=['IOU loss'],
+        name='Traning IOU Loss',
         buffer_size=1)
 
-    draw_img_name = os.path.join(logs_folder, 'draw_bbox.png')
-    log_register(draw_img_name, 'image', 'Tracking Bounding Box')
+    logp_logger_CE = TimeSeriesLogger(
+        os.path.join(logs_folder, 'CE_loss.csv'),
+        labels=['CE loss'],
+        name='Traning CE Loss',
+        buffer_size=1)    
+
+    draw_img_name_0 = os.path.join(logs_folder, 'draw_bbox_0.png')
+    draw_img_name_1 = os.path.join(logs_folder, 'draw_bbox_1.png')
+    draw_img_name_2 = os.path.join(logs_folder, 'draw_bbox_2.png')
+    draw_img_name_3 = os.path.join(logs_folder, 'draw_bbox_3.png')
+    draw_img_name_4 = os.path.join(logs_folder, 'draw_bbox_4.png')
+
+    if not os.path.exists(draw_img_name_0):
+        log_register(draw_img_name_0, 'image', 'Tracking Bounding Box 1')
+
+    if not os.path.exists(draw_img_name_1):
+        log_register(draw_img_name_1, 'image', 'Tracking Bounding Box 2')
+
+    if not os.path.exists(draw_img_name_2):
+        log_register(draw_img_name_2, 'image', 'Tracking Bounding Box 3')  
+
+    if not os.path.exists(draw_img_name_3):
+        log_register(draw_img_name_3, 'image', 'Tracking Bounding Box 4')  
+
+    if not os.path.exists(draw_img_name_4):
+        log_register(draw_img_name_4, 'image', 'Tracking Bounding Box 5')                          
 
     # read data
     # dataset = get_dataset(folder)
@@ -106,7 +180,7 @@ if __name__ == "__main__":
     opt_tracking['weight_decay'] = 1.0e-7
     opt_tracking['rnn_hidden_dim'] = 100
     opt_tracking['mlp_hidden_dim'] = [100, 100]
-    opt_tracking['base_learn_rate'] = 1.0e-4
+    opt_tracking['base_learn_rate'] = 1.0e-3
     opt_tracking['learn_rate_decay_step'] = 10000
     opt_tracking['learn_rate_decay_rate'] = 0.96
     
@@ -175,7 +249,8 @@ if __name__ == "__main__":
                         for rr, name in zip(results, nodes_run):
                             results_dict[name] = rr
 
-                        logp_logger.add(step, [results_dict['IOU_loss'], results_dict['CE_loss']])
+                        logp_logger_IOU.add(step, results_dict['IOU_loss'])
+                        logp_logger_CE.add(step, results_dict['CE_loss'])
 
                         # display training statistics
                         if (step+1) % display_iter == 0:
@@ -187,42 +262,11 @@ if __name__ == "__main__":
 
                         # draw bbox on selected data
                         if (step+1) % draw_iter == 0:
-                            draw_data = reader[0]
-                            draw_raw_imgs = draw_data['images_0']
-                            draw_raw_gt_bbox = draw_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
-
-                            count_draw = 0
-                            idx_draw_frame = 0
-                            skip_empty = True
-                            draw_imgs = []
-                            draw_gt_box = []
-
-                            while count_draw < batch_size:
-                                if draw_raw_gt_bbox[0, idx_draw_frame, 4] == 1:
-                                    skip_empty = False
-
-                                if not skip_empty:
-                                    draw_imgs.append(cv2.resize(draw_raw_imgs[idx_draw_frame, :, :], (width, height), interpolation = cv2.INTER_CUBIC))
-
-                                    tmp_box = draw_raw_gt_bbox[0, idx_draw_frame, :4]
-                                    tmp_box[0] = tmp_box[0] / draw_raw_imgs.shape[2] * width
-                                    tmp_box[1] = tmp_box[1] / draw_raw_imgs.shape[1] * height
-                                    tmp_box[2] = tmp_box[2] / draw_raw_imgs.shape[2] * width
-                                    tmp_box[3] = tmp_box[3] / draw_raw_imgs.shape[1] * height
-
-                                    draw_gt_box.append(tmp_box)
-                                    count_draw += 1
-
-                                idx_draw_frame += 1
-
-                            feed_data = {tracking_model['imgs']: draw_imgs, 
-                                     tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
-                                     tracking_model['gt_bbox']: draw_gt_box,                                     
-                                     tracking_model['phase_train']: False}
-
-                            draw_pred_bbox = sess.run(tracking_model['predict_bbox'], feed_dict=feed_data)
-
-                            plot_frame_with_bbox(draw_img_name, draw_imgs, draw_pred_bbox, draw_gt_box, 4, 4)
+                            draw_sequence(0, draw_img_name_0, reader, tracking_model, sess)
+                            draw_sequence(3, draw_img_name_1, reader, tracking_model, sess)
+                            draw_sequence(11, draw_img_name_2, reader, tracking_model, sess)
+                            draw_sequence(14, draw_img_name_3, reader, tracking_model, sess)
+                            draw_sequence(20, draw_img_name_4, reader, tracking_model, sess)
 
                         step += 1
 

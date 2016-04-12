@@ -119,8 +119,8 @@ def build_tracking_model(opt, device='/cpu:0'):
         rnn_inp_dim = rnn_h * rnn_w * rnn_dim
 
         # define a linear mapping: initial bbox -> hidden state
-        W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.01))
-        W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.01))
+        W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.001))
+        W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.001))
 
         rnn_state = [None] * (batch_size + 1)
         rnn_state[-1] = tf.concat(1, [tf.zeros([1, rnn_hidden_dim], tf.float32), tf.matmul(init_bbox, W_bbox, False, True)])
@@ -144,11 +144,12 @@ def build_tracking_model(opt, device='/cpu:0'):
         predict_bbox = transform_box(predict_bbox, height, width)
         IOU_score = compute_IOU(predict_bbox, gt_bbox)
 
+        model['IOU_score'] = IOU_score
         model['predict_bbox'] = predict_bbox
         model['predict_score'] = predict_score
 
         # IOU loss + cross-entropy loss        
-        IOU_loss = tf.reduce_sum(gt_score * (-IOU_score)) / batch_size
+        IOU_loss = tf.reduce_sum(gt_score * (1-IOU_score)) / batch_size
         cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / batch_size
 
         model['IOU_loss'] = IOU_loss
