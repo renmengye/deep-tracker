@@ -153,6 +153,7 @@ def _add_training_args(parser):
     kStepsPerValid = 250
     kStepsPerTrainval = 100
     kStepsPerPlot = 100
+    kNumSamplesPlot = 20
     kStepsPerLog = 20
     kBatchSize = 64
 
@@ -163,6 +164,8 @@ def _add_training_args(parser):
     parser.add_argument('--steps_per_trainval',
                         default=kStepsPerTrainval, type=int)
     parser.add_argument('--steps_per_plot', default=kStepsPerPlot, type=int)
+    parser.add_argument('--num_samples_plot',
+                        default=kNumSamplesPlot, type=int)
     parser.add_argument('--steps_per_log', default=kStepsPerLog, type=int)
     parser.add_argument('--batch_size', default=kBatchSize, type=int)
     parser.add_argument('--results', default='../results')
@@ -235,6 +238,7 @@ def _make_train_opt(args):
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
         'steps_per_trainval': args.steps_per_trainval,
+        'num_samples_plot': args.num_samples_plot,
         'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log,
         'results': args.results,
