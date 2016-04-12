@@ -138,7 +138,7 @@ def _add_model_args(parser):
     parser.add_argument('--cnn_depth', default=kCnnDepth)
     parser.add_argument('--cnn_pool', default=kCnnPool)
     parser.add_argument('--mlp_dims', default=kMlpDims)
-    parser.add_argument('--mlp_dropout', default=kMlpDropout)
+    parser.add_argument('--mlp_dropout', default=kMlpDropout, type=float)
     parser.add_argument('--weight_decay', default=kWeightDecay, type=float)
     parser.add_argument('--base_learn_rate', default=kBaseLearnRate)
     parser.add_argument('--learn_rate_decay',
