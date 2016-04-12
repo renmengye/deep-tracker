@@ -27,7 +27,7 @@ from time_series_logger import TimeSeriesLogger
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
+import plot_utils as pu
 
 import matching_data as data
 import matching_model as model
