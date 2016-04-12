@@ -235,6 +235,7 @@ def _make_train_opt(args):
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
         'steps_per_trainval': args.steps_per_trainval,
+        'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log,
         'results': args.results,
         'restore': args.restore,
