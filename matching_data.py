@@ -246,10 +246,10 @@ if __name__ == '__main__':
         'shuffle': True
     }
 
-    # d = get_dataset(
-    #     '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, 'train')
-
     d = get_dataset(
-        '/home/mren/cslab-gobi3/data/kitti/tracking/training', opt, split=None, seqs=[1])
+        '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, 'train')
+
+    # d = get_dataset(
+    #     '/home/mren/cslab-gobi3/data/kitti/tracking/training', opt, split=None, seqs=[1])
 
     print d
