@@ -76,7 +76,8 @@ def get_model(opt, device='/cpu:0'):
         mlp_dims = [2 * feat_dim] + mlp_dims
         mlp_dropout_keep = [1 - mlp_dropout] * mlp_nlayers
         mlp_act = [tf.nn.relu] * (mlp_nlayers - 1) + [tf.sigmoid]
-        mlp = nn.mlp(mlp_dims, mlp_act, dropout_keep=mlp_dropout_keep)
+        mlp = nn.mlp(mlp_dims, mlp_act,
+                     dropout_keep=mlp_dropout_keep, phase_train=phase_train)
 
 ############################
 # Computation graph
