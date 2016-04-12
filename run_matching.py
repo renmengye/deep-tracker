@@ -1,8 +1,13 @@
 import cslab_environ
 
-import tensorflow as tf
-import saver
 import logger
+from saver import Saver
+import sys
+import tensorflow as tf
+import numpy as np
+
+import matching_model as model
+import matching_data as data
 
 log = logger.get()
 
@@ -14,7 +19,7 @@ def get_model(opt, device='/cpu:0'):
 def get_dataset(opt):
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
-    dataset = data.get_dataset(folder, opt, seqs=[21])
+    dataset = data.get_dataset(folder, opt, split=None, seqs=[20])
 
     return dataset
 
@@ -31,7 +36,14 @@ def get_batch_fn(dataset):
     return get_batch
 
 
-if __name__ == '__main__
+def preprocess(x1, x2, y):
+    """Preprocess training data."""
+    return (x1.astype('float32') / 255,
+            x2.astype('float32') / 255,
+            y.astype('float32'))
+
+
+if __name__ == '__main__':
     restore_folder = sys.argv[1]
     saver = Saver(restore_folder)
     ckpt_info = saver.get_ckpt_info()
@@ -42,7 +54,7 @@ if __name__ == '__main__
     model_id = ckpt_info['model_id']
 
     log.info('Building model')
-    m = get_model(model_opt, device=device)
+    m = get_model(model_opt)
 
     log.info('Loading dataset')
     dataset = get_dataset(data_opt)
@@ -54,6 +66,7 @@ if __name__ == '__main__
     get_batch = get_batch_fn(dataset)
     x1, x2, y = get_batch(idx)
 
-    y = sess.run(m['y'], feed_dict={m['x1']: x1, m[
-                 'x2']: x2, m['phase_train']: False})
+    y_out = sess.run(m['y_out'],
+                     feed_dict={
+                         m['x1']: x1, m['x2']: x2, m['phase_train']: False})
     print y
