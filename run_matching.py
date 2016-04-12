@@ -97,6 +97,6 @@ if __name__ == '__main__':
                      feed_dict={
                          m['x1']: x1, m['x2']: x2, m['phase_train']: False})
     print y_out
-    print y
+    print y_gt
 
     plot_output('/u/mren/test_matching.png', x1, x2, y_gt, y_out)
