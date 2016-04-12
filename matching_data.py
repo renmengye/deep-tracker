@@ -157,9 +157,6 @@ def get_dataset(folder, opt, split='train', seqs=None):
                 output_images[ii, 1] = crop_patch(
                     image2, bbox2, patch_size, padding_mean, padding_noise,
                     center_noise, random)
-                cv2.imshow('a', output_images[ii, 0])
-                cv2.imshow('b', output_images[ii, 1])
-                cv2.waitKey()
                 output_labels[ii] = 0
                 pass
 

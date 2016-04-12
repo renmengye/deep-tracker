@@ -24,6 +24,10 @@ from log_manager import LogManager
 from saver import Saver
 from time_series_logger import TimeSeriesLogger
 
+import matplotlib
+matplotlib.use('Agg')
+
+
 import matching_data as data
 import matching_model as model
 
