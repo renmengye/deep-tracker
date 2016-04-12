@@ -110,8 +110,8 @@ def _add_dataset_args(parser):
     kPadding = 0.2
     kPaddingNoise = 0.2
     kCenterNoise = 0.2
-    kNumExPos = 10
-    kNumExNeg = 10
+    kNumExPos = 50
+    kNumExNeg = 50
     parser.add_argument('--patch_height', default=kPatchHeight, type=int)
     parser.add_argument('--patch_width', default=kPatchWidth, type=int)
     parser.add_argument('--padding', default=kPadding, type=float)
