@@ -394,6 +394,7 @@ if __name__ == '__main__':
         log_manager = LogManager(logs_folder)
         loggers = _get_ts_loggers(model_opt)
         _register_raw_logs(log_manager, log, model_opt, saver)
+        samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
         log.info('Visualization can be viewed at: {}'.format(_log_url))
