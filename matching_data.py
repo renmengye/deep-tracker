@@ -5,13 +5,15 @@ import os
 import cv2
 import progress_bar as pb
 
+
+
 log = logger.get()
 
 
 def crop_patch(image, bbox, patch_size, padding, padding_noise, center_noise,
                random):
     """Get a crop of the image.
-    
+
     Args:
         image: [H, W, 3]
         bbox: [left, top, right, bottom] 
@@ -52,7 +54,7 @@ def crop_patch(image, bbox, patch_size, padding, padding_noise, center_noise,
 
 def get_dataset(folder, opt, split='train', seqs=None):
     """Get matching dataset. 
-    
+
     Args:
 
         folder: folder where the dataset is
@@ -177,7 +179,7 @@ def get_dataset(folder, opt, split='train', seqs=None):
 
                 # print 'Pos', seq_num, obj_id, frm1, frm2
 
-                jj = ii + num_ex_neg
+                jj = ii + nneg
                 image1 = images[frm1]
                 image2 = images[frm2]
                 bbox1 = gt_bbox[obj_id, frm1, :4]
@@ -243,5 +245,8 @@ if __name__ == '__main__':
 
     d = get_dataset(
         '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, 'train')
+
+    # d = get_dataset(
+    #     '/home/mren/cslab-gobi3/data/kitti/tracking/training', opt, split=None, seqs=[1])
 
     print d

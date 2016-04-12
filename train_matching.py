@@ -19,9 +19,15 @@ import time
 
 import logger
 from batch_iter import BatchIterator
+from lazy_registerer import LazyRegisterer
 from log_manager import LogManager
 from saver import Saver
 from time_series_logger import TimeSeriesLogger
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import plot_utils as pu
 
 import matching_data as data
 import matching_model as model
@@ -43,6 +49,32 @@ def get_dataset(opt):
     return dataset
 
 
+def plot_output(fname, x1, x2, y_gt, y_out):
+    num_ex = y_out.shape[0]
+    num_items = 2
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex, num_items, max_items_per_row=9)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            if jj == 0:
+                axarr[row, col].imshow(x1[ii])
+            else:
+                axarr[row, col].imshow(x2[ii])
+
+            axarr[row, col].text(0, 0, '{:.2f} {:.2f}'.format(
+                y_gt[ii], y_out[ii]),
+                color=(0, 0, 0), size=8)
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+
 def _get_batch_fn(dataset):
     def get_batch(idx):
         x1_bat = dataset['images_0'][idx]
@@ -55,7 +87,7 @@ def _get_batch_fn(dataset):
     return get_batch
 
 
-def _run_model(m, names, feed_dict):
+def _run_model(sess, m, names, feed_dict):
     symbol_list = [m[r] for r in names]
     results = sess.run(symbol_list, feed_dict=feed_dict)
     results_dict = {}
@@ -120,7 +152,8 @@ def _add_training_args(parser):
     kStepsPerCkpt = 1000
     kStepsPerValid = 250
     kStepsPerTrainval = 100
-    kStepsPerPlot = 50
+    kStepsPerPlot = 100
+    kNumSamplesPlot = 20
     kStepsPerLog = 20
     kBatchSize = 64
 
@@ -130,6 +163,9 @@ def _add_training_args(parser):
     parser.add_argument('--steps_per_valid', default=kStepsPerValid, type=int)
     parser.add_argument('--steps_per_trainval',
                         default=kStepsPerTrainval, type=int)
+    parser.add_argument('--steps_per_plot', default=kStepsPerPlot, type=int)
+    parser.add_argument('--num_samples_plot',
+                        default=kNumSamplesPlot, type=int)
     parser.add_argument('--steps_per_log', default=kStepsPerLog, type=int)
     parser.add_argument('--batch_size', default=kBatchSize, type=int)
     parser.add_argument('--results', default='../results')
@@ -202,6 +238,8 @@ def _make_train_opt(args):
         'steps_per_ckpt': args.steps_per_ckpt,
         'steps_per_valid': args.steps_per_valid,
         'steps_per_trainval': args.steps_per_trainval,
+        'num_samples_plot': args.num_samples_plot,
+        'steps_per_plot': args.steps_per_plot,
         'steps_per_log': args.steps_per_log,
         'results': args.results,
         'restore': args.restore,
@@ -257,6 +295,20 @@ def _get_ts_loggers(model_opt, restore_step=0):
         restore_step=restore_step)
 
     return loggers
+
+
+def _get_plot_loggers(model_opt, train_opt):
+    samples = {}
+    _ssets = ['train', 'valid']
+    for _set in _ssets:
+        labels = ['output']
+        for name in labels:
+            key = '{}_{}'.format(name, _set)
+            samples[key] = LazyRegisterer(
+                os.path.join(logs_folder, '{}.png'.format(key)),
+                'image', 'Samples {} {}'.format(name, _set))
+
+    return samples
 
 
 def _register_raw_logs(log_manager, log, model_opt, saver):
@@ -342,6 +394,7 @@ if __name__ == '__main__':
         log_manager = LogManager(logs_folder)
         loggers = _get_ts_loggers(model_opt)
         _register_raw_logs(log_manager, log, model_opt, saver)
+        samples = _get_plot_loggers(model_opt, train_opt)
         _log_url = 'http://{}/deep-dashboard?id={}'.format(
             train_opt['localhost'], model_id)
         log.info('Visualization can be viewed at: {}'.format(_log_url))
@@ -354,6 +407,35 @@ if __name__ == '__main__':
     num_ex_valid = dataset['valid']['labels'].shape[0]
     get_batch_valid = _get_batch_fn(dataset['valid'])
     log.info('Number of validation examples: {}'.format(num_ex_valid))
+
+    def run_samples():
+        """Samples"""
+        def _run_samples(x1, x2, y_gt, fname):
+            _outputs = ['y_out']
+            _feed_dict = {m['x1']: x1, m['x2']: x2, m['phase_train']: False}
+            r = _run_model(sess, m, _outputs, _feed_dict)
+            plot_output(fname, x1, x2, y_gt, r['y_out'])
+
+            pass
+
+        # Plot some samples.
+        _ssets = ['train', 'valid']
+        for _set in _ssets:
+            _is_train = _set == 'train'
+            _get_batch = get_batch_train if _is_train else get_batch_valid
+            _num_ex = num_ex_train if _is_train else num_ex_valid
+            log.info('Plotting {} samples'.format(_set))
+            _x1, _x2, _y = _get_batch(
+                np.arange(min(_num_ex, args.num_samples_plot)))
+
+            labels = ['output']
+            fname_output = samples['output_{}'.format(_set)].get_fname()
+            _run_samples(_x1, _x2, _y, fname_output)
+
+            if not samples['output_{}'.format(_set)].is_registered():
+                for _name in labels:
+                    samples['{}_{}'.format(_name, _set)].register()
+        pass
 
     def get_outputs_valid():
         _outputs = ['loss', 'acc']
@@ -374,7 +456,7 @@ if __name__ == '__main__':
             _x1, _x2, _y = batch_iter.next()
             _feed_dict = {m['x1']: _x1, m['x2']: _x2,
                           m['phase_train']: phase_train, m['y_gt']: _y, }
-            _r = _run_model(m, outputs, _feed_dict)
+            _r = _run_model(sess, m, outputs, _feed_dict)
             bat_sz = _x1.shape[0]
 
             for key in _r.iterkeys():
@@ -407,7 +489,7 @@ if __name__ == '__main__':
         _outputs = ['loss', 'train_step']
         _feed_dict = {m['x1']: x1, m['x2']: x2,
                       m['phase_train']: True, m['y_gt']: y}
-        r = _run_model(m, _outputs, _feed_dict)
+        r = _run_model(sess, m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
 
         # Print statistics.
@@ -452,6 +534,11 @@ if __name__ == '__main__':
                 log.info('Running train validation')
                 run_stats(step, num_batch_valid, batch_iter_trainval,
                           outputs_trainval, write_log_trainval, True)
+                pass
+
+            # Plot samples
+            if step % train_opt['steps_per_plot'] == 0:
+                run_samples()
                 pass
 
             # Train step
