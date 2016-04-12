@@ -19,6 +19,7 @@ import time
 
 import logger
 from batch_iter import BatchIterator
+from lazy_registerer import LazyRegisterer
 from log_manager import LogManager
 from saver import Saver
 from time_series_logger import TimeSeriesLogger
@@ -41,6 +42,32 @@ def get_dataset(opt):
     dataset['valid'] = data.get_dataset(folder, opt, 'valid')
 
     return dataset
+
+
+def plot_output(fname, x1, x2, y_gt, y_out):
+    num_ex = y_out.shape[0]
+    num_items = 2
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex, num_items, max_items_per_row=9)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            if jj == 0:
+                axarr[row, col].imshow(x1[ii])
+            else:
+                axarr[row, col].imshow(x2[ii])
+
+            axarr[row, col].text(0, 0, '{:.2f} {:.2f}'.format(
+                y_gt[ii], y_out[ii]),
+                color=(0, 0, 0), size=8)
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
 
 
 def _get_batch_fn(dataset):
@@ -259,6 +286,20 @@ def _get_ts_loggers(model_opt, restore_step=0):
     return loggers
 
 
+def _get_plot_loggers(model_opt, train_opt):
+    samples = {}
+    _ssets = ['train', 'valid']
+    for _set in _ssets:
+        labels = ['output']
+        for name in labels:
+            key = '{}_{}'.format(name, _set)
+            samples[key] = LazyRegisterer(
+                os.path.join(logs_folder, '{}.png'.format(key)),
+                'image', 'Samples {} {}'.format(name, _set))
+
+    return samples
+
+
 def _register_raw_logs(log_manager, log, model_opt, saver):
     log_manager.register(log.filename, 'plain', 'Raw logs')
     cmd_fname = os.path.join(logs_folder, 'cmd.log')
@@ -354,6 +395,35 @@ if __name__ == '__main__':
     num_ex_valid = dataset['valid']['labels'].shape[0]
     get_batch_valid = _get_batch_fn(dataset['valid'])
     log.info('Number of validation examples: {}'.format(num_ex_valid))
+
+    def run_samples():
+        """Samples"""
+        def _run_samples(x1, x2, y_gt, fname):
+            _outputs = ['y_out']
+            _feed_dict = {m['x1']: x1, m['x2']: x2, m['phase_train']: False}
+            r = _run_model(sess, m, _outputs, _feed_dict)
+            plot_output(fname, x1, x2, y_gt, r['y_out'])
+
+            pass
+
+        # Plot some samples.
+        _ssets = ['train', 'valid']
+        for _set in _ssets:
+            _is_train = _set == 'train'
+            _get_batch = get_batch_train if _is_train else get_batch_valid
+            _num_ex = num_ex_train if _is_train else num_ex_valid
+            log.info('Plotting {} samples'.format(_set))
+            _x1, _x2, _y = _get_batch(
+                np.arange(min(_num_ex, args.num_samples_plot)))
+
+            labels = ['output']
+            fname_output = samples['output_{}'.format(_set)].get_fname()
+            _run_samples(_x1, _x2, _y, fname_output)
+
+            if not samples['output_{}'.format(_set)].is_registered():
+                for _name in labels:
+                    samples['{}_{}'.format(_name, _set)].register()
+        pass
 
     def get_outputs_valid():
         _outputs = ['loss', 'acc']
