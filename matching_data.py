@@ -147,6 +147,8 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
         [num, patch_height, patch_width, 3], dtype='uint8')
     output_labels = np.zeros([num], dtype='uint8')
     num_obj = gt_bbox.shape[0]
+    im_height = images.shape[-3]
+    im_width = images.shape[-2]
 
     top_left = gt_bbox[:, :, :2]
     bot_right = gt_bbox[:, :, 2: 4]
@@ -167,22 +169,27 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     log.info('Std box height {}'.format(std_box_height))
     log.info('Std box width {}'.format(std_box_width))
 
-    # for ii in xrange(num):
-    #     frames = np.array([0])
-    #     while frames.shape[0] <= 1:
-    #         obj_id = int(np.floor(random.uniform(0, num_obj)))
-    #         frames = gt_bbox[obj_id, :, 4].nonzero()[0]
-    #         pass
+    for ii in xrange(num):
+        frames = np.array([0])
+        while frames.shape[0] <= 1:
+            obj_id = int(np.floor(random.uniform(0, num_obj)))
+            frames = gt_bbox[obj_id, :, 4].nonzero()[0]
+            pass
 
-    #     idx = int(np.floor(random.uniform(0, frames.shape[0])))
-    #     frm = frames[idx]
-    #     image = images[frm]
-    #     bbox = gt_bbox[obj_id, frm, :4]
-    #     output_images[ii] = crop_patch(
-    #         image1, bbox1, patch_size, padding_mean, padding_noise,
-    #         center_noise, random)
-    #     output_labels[ii] = 1
-    #     pass
+        idx = int(np.floor(random.uniform(0, frames.shape[0])))
+        frm = frames[idx]
+        image = images[frm]
+        bbox = gt_bbox[obj_id, frm, :4]
+        bbox_height = random.normal(mean_box_height, std_box_height)
+        bbox_width = random.normal(mean_box_width, std_box_width)
+        bbox_y = random.uniform(0, im_height - bbox_height)
+        bbox_x = random.uniform(0, im_width - bbox_width)
+        bbox = [bbox_x, bbox_y, bbox_x + bbox_width, bbox_y + bbox_height]
+        output_images[ii] = crop_patch(
+            image, bbox, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_labels[ii] = 0
+        pass
 
     return output_images, output_labels
 
