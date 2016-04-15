@@ -206,7 +206,7 @@ def get_pos_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
         image = images[frm]
         bbox = gt_bbox[obj_id, frm, :4]
         output_images[ii] = crop_patch(
-            image, bbox1, patch_size, padding_mean, padding_noise,
+            image, bbox, patch_size, padding_mean, padding_noise,
             center_noise, random)
         output_labels[ii] = 1
         pass
