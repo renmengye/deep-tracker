@@ -117,7 +117,6 @@ def get_pos_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, 
         image2 = images[frm2]
         bbox1 = gt_bbox[obj_id, frm1, :4]
         bbox2 = gt_bbox[obj_id, frm2, :4]
-        patch_size = [patch_height, patch_width]
         output_images[ii, 0] = crop_patch(
             image1, bbox1, patch_size, padding_mean, padding_noise,
             center_noise, random)
@@ -129,15 +128,133 @@ def get_pos_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, 
     return output_images, output_labels
 
 
-def get_neg_patch():
-    pass
+def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean, padding_noise, center_noise, random):
+    """Extract negative patches randomly.
+
+    Args:
+        num: number of patches.
+        images: [T, H, W, 3]
+        gt_bbox: [N, T, 5]
+        patch_height: patch height.
+        patch_width: patch width.
+        padding_mean: mean padding.
+        padding_nosie: uniform noise on padding.
+        center_noise: uniform noise on center.
+        random: RandomState object.
+    """
+    patch_size = [patch_height, patch_width]
+    output_images = np.zeros(
+        [num, patch_height, patch_width, 3], dtype='uint8')
+    output_labels = np.zeros([num], dtype='uint8')
+
+    top_left = gt_bbox[:, :, :2]
+    bot_right = gt_bbox[:, :, 2: 4]
+    box_size = bot_right - top_left
+    box_size = box_size[:, :, 0] * box_size[:, :, 1]
+    num_boxes = gt_bbox[:, :, 4].sum()
+    mean_box_size = box_size.sum() / num_boxes
+    std_box_size = np.sqrt(
+        ((box_size - mean_box_size) * (box_size - mean_box_size) *
+         gt_bbox[:, :, 4]).sum() / num_boxes)
+    log.info('Mean box size {}'.format(mean_box_size))
+    log.info('Std box size {}'.format(std_box_size))
+
+    # for ii in xrange(num):
+    #     frames = np.array([0])
+    #     while frames.shape[0] <= 1:
+    #         obj_id = int(np.floor(random.uniform(0, num_obj)))
+    #         frames = gt_bbox[obj_id, :, 4].nonzero()[0]
+    #         pass
+
+    #     idx = int(np.floor(random.uniform(0, frames.shape[0])))
+    #     frm = frames[idx]
+    #     image = images[frm]
+    #     bbox = gt_bbox[obj_id, frm, :4]
+    #     output_images[ii] = crop_patch(
+    #         image1, bbox1, patch_size, padding_mean, padding_noise,
+    #         center_noise, random)
+    #     output_labels[ii] = 1
+    #     pass
+
+    return output_images, output_labels
 
 
-def get_pos_patch():
-    pass
+def get_pos_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean, padding_noise, center_noise, random):
+    patch_size = [patch_height, patch_width]
+    output_images = np.zeros(
+        [num, patch_height, patch_width, 3], dtype='uint8')
+    output_labels = np.zeros([num], dtype='uint8')
+
+    for ii in xrange(num):
+        frames = np.array([0])
+        while frames.shape[0] <= 1:
+            obj_id = int(np.floor(random.uniform(0, num_obj)))
+            frames = gt_bbox[obj_id, :, 4].nonzero()[0]
+            pass
+
+        idx = int(np.floor(random.uniform(0, frames.shape[0])))
+        frm = frames[idx]
+        image = images[frm]
+        bbox = gt_bbox[obj_id, frm, :4]
+        output_images[ii] = crop_patch(
+            image1, bbox1, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_labels[ii] = 1
+        pass
+
+    return output_images, output_labels
 
 
-def get_dataset(folder, opt, split='train', seqs=None):
+def assemble_dataset(dataset_images, dataset_labels, seqs, usage='match', shuffle=True):
+    num_ex = 0
+    for ss in xrange(len(seqs)):
+        num_ex += dataset_images[ss].shape[0]
+        pass
+
+    patch_height = dataset_images[0].shape[-3]
+    patch_width = dataset_images[0].shape[-2]
+
+    if usage == 'match':
+        final_images = np.zeros([num_ex, patch_height, patch_width, 3],
+                                dtype='uint8')
+    elif usage == 'detect':
+        final_images = np.zeros([num_ex, patch_height, patch_width, 3],
+                                dtype='uint8')
+    final_labels = np.zeros([num_ex], dtype='uint8')
+    log.info('Image shape: {}'.format(final_images.shape))
+    log.info('Label shape: {}'.format(final_labels.shape))
+
+    counter = 0
+    for ss in xrange(len(seqs)):
+        _num_ex = dataset_images[ss].shape[0]
+        final_images[counter: counter + _num_ex] = dataset_images[ss]
+        final_labels[counter: counter + _num_ex] = dataset_labels[ss]
+        counter += _num_ex
+        pass
+
+    if shuffle:
+        idx = np.arange(num_ex)
+        random.shuffle(idx)
+        final_images = final_images[idx]
+        final_labels = final_labels[idx]
+        pass
+
+    if usage == 'match':
+        dataset = {
+            'images_0': final_images[:, 0],
+            'images_1': final_images[:, 1],
+            'labels': final_labels
+        }
+    elif usage == 'detect':
+        dataset = {
+            'images': final_images,
+            'labels': final_labels
+        }
+
+    return dataset
+
+
+def get_dataset(folder, opt, split='train', seqs=None, usage='match'):
     """Get matching dataset. 
 
     Args:
@@ -198,9 +315,16 @@ def get_dataset(folder, opt, split='train', seqs=None):
             num_frames = gt_bbox.shape[1]
             nneg = num_ex_neg * num_obj
             npos = num_ex_pos * num_obj
-            output_images = np.zeros(
-                [nneg + npos, 2, patch_height, patch_width, 3],
-                dtype='uint8')
+
+            if usage == 'match':
+                output_images = np.zeros(
+                    [nneg + npos, 2, patch_height, patch_width, 3],
+                    dtype='uint8')
+            elif usage == 'detect':
+                output_images = np.zeros(
+                    [nneg + npos, patch_height, patch_width, 3],
+                    dtype='uint8')
+
             output_labels = np.zeros([nneg + npos], dtype='uint8')
             dataset_images.append(output_images)
             dataset_labels.append(output_labels)
@@ -208,47 +332,31 @@ def get_dataset(folder, opt, split='train', seqs=None):
             if num_obj < 2:
                 continue
 
-            output_images[: nneg], output_labels[: nneg] = \
-                get_neg_pair(nneg, images, gt_bbox, patch_height, patch_width,
-                             padding_mean, padding_noise, center_noise, random)
+            if usage == 'match':
+                output_images[: nneg], output_labels[: nneg] = \
+                    get_neg_pair(nneg, images, gt_bbox, patch_height,
+                                 patch_width, padding_mean, padding_noise,
+                                 center_noise, random)
 
-            output_images[nneg:], output_labels[nneg:] = \
-                get_pos_pair(npos, images, gt_bbox, patch_height, patch_width,
-                             padding_mean, padding_noise, center_noise, random)
+                output_images[nneg:], output_labels[nneg:] = \
+                    get_pos_pair(npos, images, gt_bbox, patch_height,
+                                 patch_width, padding_mean, padding_noise,
+                                 center_noise, random)
+            elif usage == 'detect':
+                output_images[: nneg], output_labels[: nneg] = \
+                    get_neg_patch(nneg, images, gt_bbox, patch_height,
+                                  patch_width, padding_mean, padding_noise,
+                                  center_noise, random)
+
+                output_images[nneg:], output_labels[nneg:] = \
+                    get_pos_patch(npos, images, gt_bbox, patch_height,
+                                  patch_width, padding_mean, padding_noise,
+                                  center_noise, random)
             pass
         pass
 
-    num_ex = 0
-    for ss in xrange(len(seqs)):
-        num_ex += dataset_images[ss].shape[0]
-        pass
-
-    final_images = np.zeros([num_ex, 2, patch_height, patch_width, 3],
-                            dtype='uint8')
-    final_labels = np.zeros([num_ex], dtype='uint8')
-    log.info('Image shape: {}'.format(final_images.shape))
-    log.info('Label shape: {}'.format(final_labels.shape))
-
-    counter = 0
-    for ss in xrange(len(seqs)):
-        _num_ex = dataset_images[ss].shape[0]
-        final_images[counter: counter + _num_ex] = dataset_images[ss]
-        final_labels[counter: counter + _num_ex] = dataset_labels[ss]
-        counter += _num_ex
-        pass
-
-    if shuffle:
-        idx = np.arange(num_ex)
-        random.shuffle(idx)
-        final_images = final_images[idx]
-        final_labels = final_labels[idx]
-        pass
-
-    dataset = {
-        'images_0': final_images[:, 0],
-        'images_1': final_images[:, 1],
-        'labels': final_labels
-    }
+    dataset = assemble_match_dataset(
+        dataset_images, dataset_labels, seqs, usage=usage, shuffle=shuffle)
 
     return dataset
 
@@ -260,13 +368,18 @@ if __name__ == '__main__':
         'center_noise': 0.2,
         'padding_noise': 0.2,
         'padding_mean': 0.2,
-        'num_ex_pos': 100,
-        'num_ex_neg': 100,
+        'num_ex_pos': 10,
+        'num_ex_neg': 10,
         'shuffle': True
     }
 
     d = get_dataset(
-        '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, 'train')
+        '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, split='train',
+        usage='detect')
+
+    d = get_dataset(
+        '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, split='train',
+        usage='match')
 
     # d = get_dataset(
     #     '/home/mren/cslab-gobi3/data/kitti/tracking/training', opt, split=None, seqs=[1])

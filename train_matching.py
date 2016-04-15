@@ -43,8 +43,10 @@ def get_model(opt, device='/cpu:0'):
 def get_dataset(opt):
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
-    dataset['train'] = data.get_dataset(folder, opt, 'train')
-    dataset['valid'] = data.get_dataset(folder, opt, 'valid')
+    dataset['train'] = data.get_dataset(
+        folder, opt, split='train', usage='match')
+    dataset['valid'] = data.get_dataset(
+        folder, opt, split='valid', usage='match')
 
     return dataset
 
