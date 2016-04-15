@@ -151,14 +151,21 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     top_left = gt_bbox[:, :, :2]
     bot_right = gt_bbox[:, :, 2: 4]
     box_size = bot_right - top_left
-    box_size = box_size[:, :, 0] * box_size[:, :, 1]
+    box_width = box_size[:, :, 0] 
+    box_height = box_size[:, :, 1]
     num_boxes = gt_bbox[:, :, 4].sum()
-    mean_box_size = box_size.sum() / num_boxes
-    std_box_size = np.sqrt(
-        ((box_size - mean_box_size) * (box_size - mean_box_size) *
+    mean_box_width = box_width.sum() / num_boxes
+    mean_box_height = box_height.sum() / num_boxes
+    std_box_width = np.sqrt(
+        ((box_width - mean_box_width) * (box_width - mean_box_width) *
          gt_bbox[:, :, 4]).sum() / num_boxes)
-    log.info('Mean box size {}'.format(mean_box_size))
-    log.info('Std box size {}'.format(std_box_size))
+    std_box_height = np.sqrt(
+        ((box_height- mean_box_height) * (box_height - mean_box_height) *
+         gt_bbox[:, :, 4]).sum() / num_boxes)
+    log.info('Mean box height {}'.format(mean_box_height))
+    log.info('Mean box width {}'.format(mean_box_width))
+    log.info('Std box height {}'.format(std_box_height))
+    log.info('Std box width {}'.format(std_box_width))
 
     # for ii in xrange(num):
     #     frames = np.array([0])
