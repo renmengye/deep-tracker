@@ -6,7 +6,6 @@ import cv2
 import progress_bar as pb
 
 
-
 log = logger.get()
 
 
@@ -50,6 +49,92 @@ def crop_patch(image, bbox, patch_size, padding, padding_noise, center_noise,
     image_resize = cv2.resize(image_crop, (patch_size[1], patch_size[0]))
 
     return image_resize
+
+
+def get_neg_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, padding_noise, center_noise, random):
+    patch_size = [patch_height, patch_width]
+    output_images = np.zeros(
+        [num, 2, patch_height, patch_width, 3], dtype='uint8')
+    output_labels = np.zeros([num], dtype='uint8')
+    for ii in xrange(nneg):
+        obj_id1 = 0
+        obj_id2 = 0
+
+        while obj_id1 == obj_id2:
+            obj_id1 = int(np.floor(random.uniform(0, num_obj)))
+            obj_id2 = int(np.floor(random.uniform(0, num_obj)))
+            pass
+
+        non_zero_frames1 = gt_bbox[obj_id1, :, 4].nonzero()[0]
+        idx1 = np.floor(random.uniform(0,
+                                       non_zero_frames1.shape[0]))
+        frm1 = non_zero_frames1[idx1]
+
+        non_zero_frames2 = gt_bbox[obj_id2, :, 4].nonzero()[0]
+        idx2 = np.floor(random.uniform(0,
+                                       non_zero_frames2.shape[0]))
+        frm2 = non_zero_frames2[idx2]
+
+        image1 = images[frm1]
+        image2 = images[frm2]
+        bbox1 = gt_bbox[obj_id1, frm1, :4]
+        bbox2 = gt_bbox[obj_id2, frm2, :4]
+        patch_size = [patch_height, patch_width]
+        output_images[ii, 0] = crop_patch(
+            image1, bbox1, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_images[ii, 1] = crop_patch(
+            image2, bbox2, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_labels[ii] = 0
+        pass
+    return output_images, output_labels
+
+
+def get_pos_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, padding_noise, center_noise, random):
+    patch_size = [patch_height, patch_width]
+    output_images = np.zeros(
+        [num, 2, patch_height, patch_width, 3], dtype='uint8')
+    output_labels = np.zeros([num], dtype='uint8')
+
+    for ii in xrange(num):
+        frames = np.array([0])
+        while frames.shape[0] <= 1:
+            obj_id = int(np.floor(random.uniform(0, num_obj)))
+            frames = gt_bbox[obj_id, :, 4].nonzero()[0]
+            pass
+
+        idx1 = 0
+        idx2 = 0
+        while idx1 == idx2:
+            idx1 = int(np.floor(random.uniform(0, frames.shape[0])))
+            idx2 = int(np.floor(random.uniform(0, frames.shape[0])))
+            pass
+
+        frm1 = frames[idx1]
+        frm2 = frames[idx2]
+        image1 = images[frm1]
+        image2 = images[frm2]
+        bbox1 = gt_bbox[obj_id, frm1, :4]
+        bbox2 = gt_bbox[obj_id, frm2, :4]
+        patch_size = [patch_height, patch_width]
+        output_images[ii, 0] = crop_patch(
+            image1, bbox1, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_images[ii, 1] = crop_patch(
+            image2, bbox2, patch_size, padding_mean, padding_noise,
+            center_noise, random)
+        output_labels[ii] = 1
+        pass
+    return output_images, output_labels
+
+
+def get_neg_patch():
+    pass
+
+
+def get_pos_patch():
+    pass
 
 
 def get_dataset(folder, opt, split='train', seqs=None):
@@ -120,79 +205,16 @@ def get_dataset(folder, opt, split='train', seqs=None):
             dataset_images.append(output_images)
             dataset_labels.append(output_labels)
 
-            # log.info('seq {}'.format(seq_num))
-            # log.info('num obj {}'.format(num_obj))
-            # log.info('num ex {}'.format(nneg + npos))
-
             if num_obj < 2:
                 continue
 
-            for ii in xrange(nneg):
-                obj_id1 = 0
-                obj_id2 = 0
+            output_images[: nneg], output_labels[: nneg] = \
+                get_neg_pair(nneg, images, gt_bbox, patch_height, patch_width,
+                             padding_mean, padding_noise, center_noise, random)
 
-                while obj_id1 == obj_id2:
-                    obj_id1 = int(np.floor(random.uniform(0, num_obj)))
-                    obj_id2 = int(np.floor(random.uniform(0, num_obj)))
-                    pass
-
-                non_zero_frames1 = gt_bbox[obj_id1, :, 4].nonzero()[0]
-                idx1 = np.floor(random.uniform(0,
-                                               non_zero_frames1.shape[0]))
-                frm1 = non_zero_frames1[idx1]
-
-                non_zero_frames2 = gt_bbox[obj_id2, :, 4].nonzero()[0]
-                idx2 = np.floor(random.uniform(0,
-                                               non_zero_frames2.shape[0]))
-                frm2 = non_zero_frames2[idx2]
-
-                image1 = images[frm1]
-                image2 = images[frm2]
-                bbox1 = gt_bbox[obj_id1, frm1, :4]
-                bbox2 = gt_bbox[obj_id2, frm2, :4]
-                patch_size = [patch_height, patch_width]
-                output_images[ii, 0] = crop_patch(
-                    image1, bbox1, patch_size, padding_mean, padding_noise,
-                    center_noise, random)
-                output_images[ii, 1] = crop_patch(
-                    image2, bbox2, patch_size, padding_mean, padding_noise,
-                    center_noise, random)
-                output_labels[ii] = 0
-                pass
-
-            for ii in xrange(npos):
-                frames = np.array([0])
-                while frames.shape[0] <= 1:
-                    obj_id = int(np.floor(random.uniform(0, num_obj)))
-                    frames = gt_bbox[obj_id, :, 4].nonzero()[0]
-                    pass
-
-                idx1 = 0
-                idx2 = 0
-                while idx1 == idx2:
-                    idx1 = int(np.floor(random.uniform(0, frames.shape[0])))
-                    idx2 = int(np.floor(random.uniform(0, frames.shape[0])))
-                    pass
-
-                frm1 = frames[idx1]
-                frm2 = frames[idx2]
-
-                # print 'Pos', seq_num, obj_id, frm1, frm2
-
-                jj = ii + nneg
-                image1 = images[frm1]
-                image2 = images[frm2]
-                bbox1 = gt_bbox[obj_id, frm1, :4]
-                bbox2 = gt_bbox[obj_id, frm2, :4]
-                patch_size = [patch_height, patch_width]
-                output_images[jj, 0] = crop_patch(
-                    image1, bbox1, patch_size, padding_mean, padding_noise,
-                    center_noise, random)
-                output_images[jj, 1] = crop_patch(
-                    image2, bbox2, patch_size, padding_mean, padding_noise,
-                    center_noise, random)
-                output_labels[jj] = 1
-                pass
+            output_images[nneg:], output_labels[nneg:] = \
+                get_pos_pair(npos, images, gt_bbox, patch_height, patch_width,
+                             padding_mean, padding_noise, center_noise, random)
             pass
         pass
 
