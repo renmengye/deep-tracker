@@ -146,6 +146,7 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     output_images = np.zeros(
         [num, patch_height, patch_width, 3], dtype='uint8')
     output_labels = np.zeros([num], dtype='uint8')
+    num_obj = gt_bbox.shape[0]
 
     top_left = gt_bbox[:, :, :2]
     bot_right = gt_bbox[:, :, 2: 4]
@@ -184,6 +185,7 @@ def get_pos_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     output_images = np.zeros(
         [num, patch_height, patch_width, 3], dtype='uint8')
     output_labels = np.zeros([num], dtype='uint8')
+    num_obj = gt_bbox.shape[0]
 
     for ii in xrange(num):
         frames = np.array([0])
