@@ -180,10 +180,10 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
         frm = frames[idx]
         image = images[frm]
         bbox = gt_bbox[obj_id, frm, :4]
-        bbox_height = random.normal(mean_box_height, std_box_height)
-        bbox_width = random.normal(mean_box_width, std_box_width)
-        bbox_y = random.uniform(0, im_height - bbox_height)
-        bbox_x = random.uniform(0, im_width - bbox_width)
+        bbox_height = int(random.normal(mean_box_height, std_box_height))
+        bbox_width = int(random.normal(mean_box_width, std_box_width))
+        bbox_y = int(random.uniform(0, im_height - bbox_height))
+        bbox_x = int(random.uniform(0, im_width - bbox_width))
         bbox = [bbox_x, bbox_y, bbox_x + bbox_width, bbox_y + bbox_height]
         log.info(bbox)
         log.info([im_height, im_width])
