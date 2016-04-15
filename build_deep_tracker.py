@@ -1,5 +1,6 @@
 from __future__ import division
 
+import cv2
 import tensorflow as tf
 import nnlib as nn
 import numpy as np
@@ -22,11 +23,11 @@ def get_device_fn(device):
 def compute_IOU(bboxA, bboxB):
     """Compute the Intersection Over Union.
     Args:
-        bboxA: [n, 4] tensor; order is left, top, right, bottom
-        bboxB: [n, 4] tensor
+        bboxA: [N X 4 tensor] format = [left, top, right, bottom]
+        bboxB: [N X 4 tensor] 
 
     Return:
-        IOU: [n, 1]
+        IOU: [N X 1 tensor]
     """
 
     x1A, y1A, x2A, y2A = tf.split(1, 4, bboxA)
@@ -49,7 +50,18 @@ def compute_IOU(bboxA, bboxB):
     return tf.div(overlap_area, union_area)
 
 def transform_box(bbox, height, width):
-    x, y, h, w = tf.split(1, 4, bbox)
+    """ Transform the bounding box format 
+        Args:
+            bbox: [N X 4] input N bbox
+                  fromat = [cx, cy, log(w/W), log(h/H)]
+            height: height of original image
+            width: width of original image
+
+        Return:
+            bbox: [N X 4] output N bbox
+                  format = [left top right bottom]
+    """
+    x, y, w, h = tf.split(1, 4, bbox)
     
     h = tf.exp(h) * height
     w = tf.exp(w) * width
@@ -68,11 +80,11 @@ def transform_box(bbox, height, width):
 def build_tracking_model(opt, device='/cpu:0'):
     model = {}
     
-    batch_size = opt['batch_size']
+    rnn_seq_len = opt['rnn_seq_len']
     cnn_filter_size = opt['cnn_filter_size']
-    cnn_num_channel = opt['cnn_num_channel']
+    cnn_num_filter = opt['cnn_num_filter']
     cnn_pool_size = opt['cnn_pool_size']
-    img_num_channel = opt['img_channel']
+    num_channel = opt['img_channel']
     use_bn = opt['use_batch_norm']  
     height = opt['img_height']
     width = opt['img_width']
@@ -85,10 +97,14 @@ def build_tracking_model(opt, device='/cpu:0'):
 
     with tf.device(get_device_fn(device)):
         phase_train = tf.placeholder('bool')
-        imgs = tf.placeholder(tf.float32, [batch_size, height, width, img_num_channel])
-        init_bbox = tf.placeholder(tf.float32, [1, 4])
-        gt_bbox = tf.placeholder(tf.float32, [batch_size, 4])
-        gt_score = tf.placeholder(tf.float32, [batch_size, 1])
+        # input image [B, T, H, W, C]
+        imgs = tf.placeholder(tf.float32, [None, rnn_seq_len, height, width, num_channel])
+        img_shape = tf.shape(imgs)
+        batch_size = img_shape[0]
+
+        init_bbox = tf.placeholder(tf.float32, [batch_size, 4])
+        gt_bbox = tf.placeholder(tf.float32, [batch_size, rnn_seq_len, 4])
+        gt_score = tf.placeholder(tf.float32, [batch_size, rnn_seq_len, 1])
 
         model['imgs'] = imgs
         model['gt_bbox'] = gt_bbox
@@ -96,10 +112,14 @@ def build_tracking_model(opt, device='/cpu:0'):
         model['init_bbox'] = init_bbox
         model['phase_train'] = phase_train
 
+        IOU_score = [None] * batch_size
+        predict_bbox = tf.zeros([batch_size, rnn_seq_len, 4])
+        predict_score = tf.zeros([batch_size, rnn_seq_len, 1])
+
         # define a CNN model
         cnn_filter = cnn_filter_size
         cnn_nlayer = len(cnn_filter)
-        cnn_channel = [img_num_channel] + cnn_num_channel
+        cnn_channel = [num_channel] + cnn_num_filter
         cnn_pool = cnn_pool_size
         cnn_act = [tf.nn.relu] * cnn_nlayer
         cnn_use_bn = [use_bn] * cnn_nlayer
@@ -107,48 +127,64 @@ def build_tracking_model(opt, device='/cpu:0'):
         cnn_model = nn.cnn(cnn_filter, cnn_channel, cnn_pool, cnn_act,
                       cnn_use_bn, phase_train=phase_train, wd=weight_decay)
         
-        h_cnn = cnn_model(imgs) # h_cnn is a list and stores the output of every layer
-        cnn_output = h_cnn[-1]
-        model['cnn_output'] = cnn_output
-
         # define a RNN(LSTM) model
         cnn_subsample = np.array(cnn_pool).prod()
         rnn_h = int(height / cnn_subsample)
         rnn_w = int(width / cnn_subsample)
-        rnn_dim = cnn_channel[-1]       
-        rnn_inp_dim = rnn_h * rnn_w * rnn_dim
+        rnn_dim = cnn_channel[-1]
+        rnn_inp_dim = rnn_h * rnn_w * rnn_dim   # input dimension of RNN
 
         # define a linear mapping: initial bbox -> hidden state
-        W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.001))
-        W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.001))
+        init_bbox = inverse_transform_box(init_bbox, height, width)
+        W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.1))
+        W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.01))
+        b_bbox = tf.Variable(tf.zeros([4], stddev=0.1))
+        b_score = tf.Variable(tf.zeros([1], stddev=0.1))
 
-        rnn_state = [None] * (batch_size + 1)
-        rnn_state[-1] = tf.concat(1, [tf.zeros([1, rnn_hidden_dim], tf.float32), tf.matmul(init_bbox, W_bbox, False, True)])
-        rnn_hidden_feat = [None] * batch_size
-        predict_bbox = tf.zeros([batch_size, 4])
-        predict_score = tf.zeros([batch_size, 1])
-        IOU_score = [None] * batch_size
+        rnn_state = [None] * (rnn_seq_len + 1)
+        predict_bbox = [None] * (rnn_seq_len + 1)
+        predict_score = [None] * (rnn_seq_len + 1)
+        predict_bbox[-1] = init_bbox
+        predict_score[-1] = 1
+        rnn_state[-1] = tf.zeros(tf.pack([batch_size, rnn_hidden_dim * 2]))
+        rnn_hidden_feat = [None] * rnn_seq_len
 
         rnn_cell = nn.lstm(rnn_inp_dim, rnn_hidden_dim, wd=weight_decay)
 
-        cnn_feat = tf.split(0, batch_size, cnn_output)
+        for tt in xrange(rnn_seq_len):
+            # extract global CNN feature map
+            h_cnn_global = cnn_model(imgs[:, tt])
+            cnn_global_feat_map = h_cnn_global[-1]
+            model['cnn_global_feat_map'] = cnn_global_feat_map
 
-        for tt in xrange(batch_size):
-            cnn_feat[tt] = tf.reshape(cnn_feat[tt], [1, rnn_inp_dim])
-            rnn_state[tt], _, _, _ = rnn_cell(cnn_feat[tt], rnn_state[tt - 1])
+            # extract ROI CNN feature map 
+            x1, y1, x2, y2 = tf.split(1, 4, predict_bbox[tt-1])          
+            mask = tf.zeros(batch_size, height, width, num_channel)
+            for ii in xrange(batch_size):
+                mask[ii, y1 : y2, x1 : x2, :] = imgs[ii, y1 : y2, x1 : x2, :]
+
+            h_cnn_roi = cnn_model(mask)
+            cnn_roi_feat_map = h_cnn_roi[-1]
+            model['cnn_roi_feat_map'] = cnn_roi_feat_map
+
+            # going through a RNN
+            # RNN input = global CNN feat map + ROI CNN feat map 
+            rnn_input = tf.concat([tf.reshape(cnn_global_feat_map, [-1, rnn_inp_dim]), tf.reshape(cnn_roi_feat_map, [-1, rnn_inp_dim])])        
+            rnn_state[tt], _, _, _ = rnn_cell(rnn_input, rnn_state[tt - 1])
             rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
-            
-        predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat), W_bbox)
-        predict_score = tf.sigmoid(tf.matmul(tf.concat(0, rnn_hidden_feat), W_score))
+
+            # predict bbox and score            
+            raw_predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat[tt]), W_bbox) + b_bbox
+            predict_bbox[tt] = transform_box(raw_predict_bbox, height, width)
+            predict_score[tt] = tf.sigmoid(tf.matmul(tf.concat(0, rnn_hidden_feat[tt]), W_score)) b_score
         
-        predict_bbox = transform_box(predict_bbox, height, width)
-        IOU_score = compute_IOU(predict_bbox, gt_bbox)
+        IOU_score = compute_IOU(tf.concat(0, predict_bbox[:-1]), gt_bbox)
 
         model['IOU_score'] = IOU_score
-        model['predict_bbox'] = predict_bbox
+        model['predict_bbox'] = predict_bbox[]
         model['predict_score'] = predict_score
 
-        # IOU loss + cross-entropy loss        
+        # IOU loss + cross-entropy loss
         IOU_loss = tf.reduce_sum(gt_score * (1-IOU_score)) / batch_size
         cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / batch_size
 

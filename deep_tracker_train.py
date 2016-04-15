@@ -181,7 +181,7 @@ if __name__ == "__main__":
     opt_tracking['rnn_hidden_dim'] = 100
     opt_tracking['mlp_hidden_dim'] = [100, 100]
     opt_tracking['base_learn_rate'] = 1.0e-3
-    opt_tracking['learn_rate_decay_step'] = 10000
+    opt_tracking['learn_rate_decay_step'] = 5000
     opt_tracking['learn_rate_decay_rate'] = 0.96
     
     tracking_model = build_tracking_model(opt_tracking, device)
