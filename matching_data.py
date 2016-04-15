@@ -186,6 +186,7 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
         bbox_x = random.uniform(0, im_width - bbox_width)
         bbox = [bbox_x, bbox_y, bbox_x + bbox_width, bbox_y + bbox_height]
         log.info(bbox)
+        log.info([im_height, im_width])
         output_images[ii] = crop_patch(
             image, bbox, patch_size, padding_mean, padding_noise,
             center_noise, random)
