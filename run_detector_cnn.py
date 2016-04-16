@@ -39,8 +39,7 @@ log = logger.get()
 def get_dataset():
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking'
-    dataset['train'] = data.get_dataset(folder, split='train')
-    dataset['valid'] = data.get_dataset(folder, split='test')
+    dataset = data.get_dataset(folder, split='train')[0]
     return dataset
 
 
@@ -132,14 +131,8 @@ if __name__ == '__main__':
     dataset = get_dataset()
 
     sess = tf.Session()
-    batch_size = 10
-    log.info('Batch size: {}'.format(batch_size))
-    num_ex_train = dataset['train']['labels'].shape[0]
-    get_batch_train = _get_batch_fn(dataset['train'])
-    log.info('Number of training examples: {}'.format(num_ex_train))
-    num_ex_valid = dataset['valid']['labels'].shape[0]
-    get_batch_valid = _get_batch_fn(dataset['valid'])
-    log.info('Number of validation examples: {}'.format(num_ex_valid))
+    num_ex = dataset['labels'].shape[0]
+    get_batch = _get_batch_fn(dataset)
 
     def run_samples():
         """Samples"""
@@ -151,15 +144,9 @@ if __name__ == '__main__':
 
             pass
 
-        # Plot some samples.
-        _ssets = ['train', 'valid']
         for _set in _ssets:
-            _is_train = _set == 'train'
-            _get_batch = get_batch_train if _is_train else get_batch_valid
-            _num_ex = num_ex_train if _is_train else num_ex_valid
-            log.info('Plotting {} samples'.format(_set))
-            _x = _get_batch(np.arange(min(_num_ex, args.num_samples_plot)))
-            fname_output = os.path.join(args.output, _ssets + '_output.png')
+            _x = get_batch(np.arange(min(num_ex, 10)))
+            fname_output = os.path.join(args.output, 'output.png')
             _run_samples(_x, fname_output)
         pass
 
