@@ -247,6 +247,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 if model:
                     for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
                         key = '{}_{}_{}'.format(scope, name, ii)
+                        log.warning(key)
                         if key in model:
                             raise Exception('Key exists: {}'.format(key))
                         model[key] = param
