@@ -56,7 +56,7 @@ def get_neg_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, 
     output_images = np.zeros(
         [num, 2, patch_height, patch_width, 3], dtype='uint8')
     output_labels = np.zeros([num], dtype='uint8')
-    for ii in xrange(nneg):
+    for ii in xrange(num):
         obj_id1 = 0
         obj_id2 = 0
 
