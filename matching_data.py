@@ -401,11 +401,11 @@ if __name__ == '__main__':
         '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, split='train',
         usage='detect')
 
-    d = get_dataset(
-        '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, split='train',
-        usage='match')
+    print d
+    
+    # d = get_dataset(
+    #     '/ais/gobi3/u/mren/data/kitti/tracking/training', opt, split='train',
+    #     usage='match')
 
     # d = get_dataset(
     #     '/home/mren/cslab-gobi3/data/kitti/tracking/training', opt, split=None, seqs=[1])
-
-    print d
