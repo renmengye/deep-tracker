@@ -29,6 +29,8 @@ def read(folder):
     sess = tf.Session()
     saver.restore(sess, ckpt_fname)
 
+    print m
+
     output_list = []
     for net, nlayers in zip(['cnn', 'mlp'], [cnn_nlayers, mlp_nlayers]):
         for ii in xrange(nlayers):
