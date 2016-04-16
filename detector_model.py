@@ -60,6 +60,7 @@ def get_model(opt, device='/cpu:0'):
         cnn_use_bn = [True] * cnn_nlayers
         cnn_act = [tf.nn.relu] * cnn_nlayers
         cnn = nn.cnn(cnn_filter_size, cnn_channels, cnn_pool, cnn_act,
+                     model=model,
                      cnn_use_bn, phase_train=phase_train, wd=wd, scope='cnn')
 
         subsample = np.array(cnn_pool).prod()
@@ -75,7 +76,7 @@ def get_model(opt, device='/cpu:0'):
         mlp_dims = [feat_dim] + mlp_dims
         mlp_dropout_keep = [1 - mlp_dropout] * mlp_nlayers
         mlp_act = [tf.nn.relu] * (mlp_nlayers - 1) + [tf.sigmoid]
-        mlp = nn.mlp(mlp_dims, mlp_act,
+        mlp = nn.mlp(mlp_dims, mlp_act, model=model
                      dropout_keep=mlp_dropout_keep, phase_train=phase_train)
 
 ############################
