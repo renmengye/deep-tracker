@@ -68,7 +68,7 @@ def plot_output(fname, x, y):
 
 def _get_batch_fn(dataset):
     def get_batch(idx):
-        x_bat = dataset['images'][idx]
+        x_bat = dataset['images_0'][idx]
         return x_bat
     return get_batch
 
