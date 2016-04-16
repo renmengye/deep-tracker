@@ -20,6 +20,55 @@ def get_device_fn(device):
 
     return _device_fn
 
+
+def get_idx_map(shape):
+    """Get index map for a image.
+    Args:
+        shape: [B, T, H, W] or [B, H, W]
+    Returns:
+        idx: [B, T, H, W, 2], or [B, H, W, 2]
+    """
+    s = shape
+    ndims = tf.shape(s)
+    wdim = ndims - 1
+    hdim = ndims - 2
+    idx_shape = tf.concat(0, [s, tf.constant([1])])
+    ones_h = tf.ones(hdim - 1, dtype='int32')
+    ones_w = tf.ones(wdim - 1, dtype='int32')
+    h_shape = tf.concat(0, [ones_h, tf.constant([-1]), tf.constant([1, 1])])
+    w_shape = tf.concat(0, [ones_w, tf.constant([-1]), tf.constant([1])])
+
+    idx_y = tf.zeros(idx_shape, dtype='float')
+    idx_x = tf.zeros(idx_shape, dtype='float')
+
+    h = tf.slice(s, ndims - 2, [1])
+    w = tf.slice(s, ndims - 1, [1])
+    idx_y += tf.reshape(tf.to_float(tf.range(h[0])), h_shape)
+    idx_x += tf.reshape(tf.to_float(tf.range(w[0])), w_shape)
+    idx = tf.concat(ndims[0], [idx_y, idx_x])
+
+    return idx
+
+
+def get_filled_box_idx(idx, top_left, bot_right):
+    """Fill a box with top left and bottom right coordinates.
+    Args:
+        idx: [B, T, H, W, 2] or [B, H, W, 2] or [H, W, 2]
+        top_left: [B, T, 2] or [B, 2] or [2]
+        bot_right: [B, T, 2] or [B, 2] or [2]
+    """
+    ss = tf.shape(idx)
+    ndims = tf.shape(ss)
+    batch = tf.slice(ss, [0], ndims - 3)
+    coord_shape = tf.concat(0, [batch, tf.constant([1, 1, 2])])
+    top_left = tf.reshape(top_left, coord_shape)
+    bot_right = tf.reshape(bot_right, coord_shape)
+    lower = tf.reduce_prod(tf.to_float(idx >= top_left), ndims - 1)
+    upper = tf.reduce_prod(tf.to_float(idx <= bot_right), ndims - 1)
+    box = lower * upper
+
+    return box
+
 def compute_IOU(bboxA, bboxB):
     """Compute the Intersection Over Union.
     Args:
@@ -58,7 +107,7 @@ def transform_box(bbox, height, width):
             width: width of original image
 
         Return:
-            bbox: [N X 4] output N bbox
+            bbox: [N X 4] output rounded N bbox
                   format = [left top right bottom]
     """
     x, y, w, h = tf.split(1, 4, bbox)
@@ -73,7 +122,7 @@ def transform_box(bbox, height, width):
     x2 = x + w/2
     y2 = y + h/2 
 
-    bbox_out = tf.concat(1, [x1, y1, x2, y2])
+    bbox_out = tf.round(tf.concat(1, [x1, y1, x2, y2]))
 
     return bbox_out
 
@@ -90,7 +139,6 @@ def build_tracking_model(opt, device='/cpu:0'):
     width = opt['img_width']
     weight_decay = opt['weight_decay']
     rnn_hidden_dim = opt['rnn_hidden_dim']
-    mlp_hidden_dim = opt['mlp_hidden_dim']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay_step = opt['learn_rate_decay_step']
     learn_rate_decay_rate = opt['learn_rate_decay_rate']
@@ -102,19 +150,16 @@ def build_tracking_model(opt, device='/cpu:0'):
         img_shape = tf.shape(imgs)
         batch_size = img_shape[0]
 
-        init_bbox = tf.placeholder(tf.float32, [batch_size, 4])
-        gt_bbox = tf.placeholder(tf.float32, [batch_size, rnn_seq_len, 4])
-        gt_score = tf.placeholder(tf.float32, [batch_size, rnn_seq_len, 1])
+        init_bbox = tf.placeholder(tf.float32, [None, 4])
+        gt_bbox = tf.placeholder(tf.float32, [None, rnn_seq_len, 4])
+        gt_score = tf.placeholder(tf.float32, [None, rnn_seq_len])
+        IOU_score = [None] * rnn_seq_len
 
         model['imgs'] = imgs
         model['gt_bbox'] = gt_bbox
         model['gt_score'] = gt_score
         model['init_bbox'] = init_bbox
         model['phase_train'] = phase_train
-
-        IOU_score = [None] * batch_size
-        predict_bbox = tf.zeros([batch_size, rnn_seq_len, 4])
-        predict_score = tf.zeros([batch_size, rnn_seq_len, 1])
 
         # define a CNN model
         cnn_filter = cnn_filter_size
@@ -126,20 +171,14 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         cnn_model = nn.cnn(cnn_filter, cnn_channel, cnn_pool, cnn_act,
                       cnn_use_bn, phase_train=phase_train, wd=weight_decay)
-        
+
         # define a RNN(LSTM) model
         cnn_subsample = np.array(cnn_pool).prod()
         rnn_h = int(height / cnn_subsample)
         rnn_w = int(width / cnn_subsample)
         rnn_dim = cnn_channel[-1]
-        rnn_inp_dim = rnn_h * rnn_w * rnn_dim   # input dimension of RNN
-
-        # define a linear mapping: initial bbox -> hidden state
-        init_bbox = inverse_transform_box(init_bbox, height, width)
-        W_bbox = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 4], stddev=0.1))
-        W_score = tf.Variable(tf.truncated_normal([rnn_hidden_dim, 1], stddev=0.01))
-        b_bbox = tf.Variable(tf.zeros([4], stddev=0.1))
-        b_score = tf.Variable(tf.zeros([1], stddev=0.1))
+        cnn_out_dim = rnn_h * rnn_w * rnn_dim   # input dimension of RNN
+        rnn_inp_dim = cnn_out_dim * 2
 
         rnn_state = [None] * (rnn_seq_len + 1)
         predict_bbox = [None] * (rnn_seq_len + 1)
@@ -151,42 +190,61 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         rnn_cell = nn.lstm(rnn_inp_dim, rnn_hidden_dim, wd=weight_decay)
 
+        # define two linear mapping MLPs: 
+        # RNN hidden state -> bbox
+        # RNN hidden state -> score
+        bbox_mlp_dims = [rnn_hidden_dim, 4]
+        bbox_mlp_act = [None]
+        
+        bbox_mlp = nn.mlp(bbox_mlp_dims, bbox_mlp_act, add_bias=True, phase_train=phase_train, wd=weight_decay)
+
+        score_mlp_dims = [rnn_hidden_dim, 1]
+        score_mlp_act = [tf.sigmoid]
+
+        score_mlp = nn.mlp(score_mlp_dims, score_mlp_act, add_bias=True, phase_train=phase_train, wd=weight_decay)
+
+        # training through time
         for tt in xrange(rnn_seq_len):
             # extract global CNN feature map
-            h_cnn_global = cnn_model(imgs[:, tt])
+            h_cnn_global = cnn_model(imgs[:, tt, :, :, :])
             cnn_global_feat_map = h_cnn_global[-1]
+            cnn_global_feat_map = tf.stop_gradient(cnn_global_feat_map) # fix CNN during training
             model['cnn_global_feat_map'] = cnn_global_feat_map
 
             # extract ROI CNN feature map 
-            x1, y1, x2, y2 = tf.split(1, 4, predict_bbox[tt-1])          
-            mask = tf.zeros(batch_size, height, width, num_channel)
-            for ii in xrange(batch_size):
-                mask[ii, y1 : y2, x1 : x2, :] = imgs[ii, y1 : y2, x1 : x2, :]
+            x1, y1, x2, y2 = tf.split(1, 4, predict_bbox[tt-1])                      
+            idx_map = get_idx_map(tf.shape(imgs[:, tt, :, :, :]))            
+            mask_map = get_filled_box_idx(idx_map, tf.concat(1, [y1, x1]), tf.concat(1, [y2, x2]))
+            ROI_img = imgs[:, tt, :, :, :] * mask_map
 
-            h_cnn_roi = cnn_model(mask)
+            h_cnn_roi = cnn_model(ROI_img)
             cnn_roi_feat_map = h_cnn_roi[-1]
+            cnn_roi_feat_map = tf.stop_gradient(cnn_roi_feat_map)   # fix CNN during training
             model['cnn_roi_feat_map'] = cnn_roi_feat_map
 
             # going through a RNN
-            # RNN input = global CNN feat map + ROI CNN feat map 
-            rnn_input = tf.concat([tf.reshape(cnn_global_feat_map, [-1, rnn_inp_dim]), tf.reshape(cnn_roi_feat_map, [-1, rnn_inp_dim])])        
+            # RNN input = global CNN feat map + ROI CNN feat map
+            rnn_input = tf.concat(1, [tf.reshape(cnn_global_feat_map, [-1, cnn_out_dim]), tf.reshape(cnn_roi_feat_map, [-1, cnn_out_dim])])
             rnn_state[tt], _, _, _ = rnn_cell(rnn_input, rnn_state[tt - 1])
             rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
-
+                        
             # predict bbox and score            
-            raw_predict_bbox = tf.matmul(tf.concat(0, rnn_hidden_feat[tt]), W_bbox) + b_bbox
-            predict_bbox[tt] = transform_box(raw_predict_bbox, height, width)
-            predict_score[tt] = tf.sigmoid(tf.matmul(tf.concat(0, rnn_hidden_feat[tt]), W_score)) b_score
+            raw_predict_bbox = bbox_mlp(rnn_hidden_feat[tt])            
+            predict_bbox[tt] = transform_box(tf.pack(raw_predict_bbox), height, width)
+            predict_score[tt] = score_mlp(rnn_hidden_feat[tt])
+            
+            IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
+            print IOU_score[tt]
         
-        IOU_score = compute_IOU(tf.concat(0, predict_bbox[:-1]), gt_bbox)
-
         model['IOU_score'] = IOU_score
-        model['predict_bbox'] = predict_bbox[]
+        model['predict_bbox'] = predict_bbox
         model['predict_score'] = predict_score
 
         # IOU loss + cross-entropy loss
-        IOU_loss = tf.reduce_sum(gt_score * (1-IOU_score)) / batch_size
-        cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / batch_size
+        batch_size_f = tf.to_float(batch_size)
+        rnn_seq_len_f = tf.to_float(rnn_seq_len)
+        IOU_loss = tf.reduce_sum(gt_score * (1 - tf.concat(0, tf.pack(IOU_score)))) / (batch_size_f * rnn_seq_len_f)
+        cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / (batch_size_f * rnn_seq_len_f)
 
         model['IOU_loss'] = IOU_loss
         model['CE_loss'] = cross_entropy
