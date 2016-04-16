@@ -49,6 +49,7 @@ def get_model(opt, device='/cpu:0'):
         cnn_filters = cnn_filter_size + [1]
         cnn_channels = [inp_depth] + cnn_depth + [1]
         cnn_nlayers = len(cnn_filter_size)
+        cnn_pool = cnn_pool + [1]
         cnn_use_bn = [True] * cnn_nlayers + [False]
         cnn_act = [tf.nn.relu] * cnn_nlayers + [tf.sigmoid]
 

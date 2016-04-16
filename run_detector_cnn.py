@@ -44,9 +44,9 @@ def get_dataset():
     return dataset
 
 
-def plot_output(fname, x):
+def plot_output(fname, x, y):
     num_ex = y_out.shape[0]
-    num_items = 1
+    num_items = 2
     num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=9)
 
@@ -56,7 +56,10 @@ def plot_output(fname, x):
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
-            axarr[row, col].imshow(x[ii])
+            if jj % 2 == 0
+                axarr[row, col].imshow(cv2.resize(x[ii], (448, 128)))
+            else:
+                axarr[row, col].imshow(cv2.resize(y[ii], (448, 128)))
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
     plt.savefig(fname, dpi=150)
@@ -144,7 +147,7 @@ if __name__ == '__main__':
             _outputs = ['y_out']
             _feed_dict = {m['x']: x}
             r = _run_model(sess, m, _outputs, _feed_dict)
-            plot_output(fname, r['y_out'])
+            plot_output(fname, x, r['y_out'])
 
             pass
 
