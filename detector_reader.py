@@ -74,7 +74,7 @@ def parse_args():
 
     parser.add_argument('--model_id', default=None)
     parser.add_argument(
-        '--results', default='/ais/gobi3/u/mren/results/deep_tracker')
+        '--results', default='/ais/gobi3/u/mren/results/deep-tracker')
     parser.add_argument(
         '--output', default=None)
 
