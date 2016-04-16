@@ -86,7 +86,11 @@ def _run_model(sess, m, names, feed_dict):
 
 def preprocess(x):
     """Preprocess training data."""
-    x = cv2.resize(x, (448, 128))
+    print x.shape
+    x_new = np.zeros([x.shape[0], 128, 448, 3])
+    for ii in xrange(x.shape[0]):
+        x_new[ii] = cv2.resize(x[ii], (448, 128))
+    print x_new.shape
     return x.astype('float32') / 255
 
 
