@@ -83,7 +83,6 @@ def get_model(opt, device='/cpu:0'):
 # Computation nodes
 ############################
         model['x'] = x
-        model['y_gt'] = y_gt
         model['y_out'] = y_out
 
     return model
