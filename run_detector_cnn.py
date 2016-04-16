@@ -103,7 +103,7 @@ def parse_args():
 
 if __name__ == '__main__':
     # Command-line arguments
-    args = _parse_args()
+    args = parse_args()
     tf.set_random_seed(1234)
     saver = None
     model_folder = os.path.join(args.results, args.model_id)
