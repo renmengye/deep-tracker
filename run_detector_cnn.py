@@ -46,7 +46,7 @@ def get_dataset():
 
 
 def plot_output(fname, x, y):
-    num_ex = y_out.shape[0]
+    num_ex = y.shape[0]
     num_items = 2
     num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=9)
