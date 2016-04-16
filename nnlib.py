@@ -244,6 +244,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
+                log.fatal(model)
                 if model:
                     for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
                         key = '{}_{}_{}'.format(scope, name, ii)
