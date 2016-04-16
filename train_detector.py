@@ -52,7 +52,7 @@ def get_dataset(opt):
 
 
 def plot_output(fname, x, y_gt, y_out):
-    num_ex = y_out.shape[0] / 8
+    num_ex = int(y_out.shape[0] / 8)
     num_items = 8
     num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=9)
