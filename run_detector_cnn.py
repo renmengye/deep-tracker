@@ -155,7 +155,8 @@ if __name__ == '__main__':
         random = np.random.RandomState(2)
         random.shuffle(idx)
         _x = get_batch(idx[:10])
-        fname_output = os.path.join(args.output, 'output.png')
+        fname_output = os.path.join(
+            args.output, 'output_{}x{}.png'.format(args.height, args.width))
         _run_samples(_x, fname_output)
         pass
 
