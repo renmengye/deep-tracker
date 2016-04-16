@@ -21,7 +21,7 @@ def read(folder):
     model_opt = ckpt_info['model_opt']
     ckpt_fname = ckpt_info['ckpt_fname']
     model_id = ckpt_info['model_id']
-    model = model.get_model(model_opt)
+    m = model.get_model(model_opt)
     cnn_nlayers = len(model_opt['cnn_filter_size'])
     mlp_nlayers = 1
     timespan = 1
@@ -45,7 +45,7 @@ def read(folder):
 
     output_var = []
     for key in output_list:
-        output_var.append(model[key])
+        output_var.append(m[key])
 
     output_var_value = sess.run(output_var)
 
