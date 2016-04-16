@@ -86,9 +86,9 @@ def _run_model(sess, m, names, feed_dict):
 
 def preprocess(x):
     """Preprocess training data."""
-    x_new = np.zeros([x.shape[0], 128, 448, 3])
+    x_new = np.zeros([x.shape[0], args.height, args.width, 3])
     for ii in xrange(x.shape[0]):
-        x_new[ii] = cv2.resize(x[ii], (448, 128))
+        x_new[ii] = cv2.resize(x[ii], (args.width, args.height))
     return x_new.astype('float32') / 255
 
 
@@ -101,6 +101,8 @@ def parse_args():
         '--results', default='/ais/gobi3/u/mren/results/deep-tracker')
     parser.add_argument(
         '--output', default=None)
+    parser.add_argument('--height', default=128, type=int)
+    parser.add_argument('--width', default=448, type=int)
 
     args = parser.parse_args()
 
@@ -117,8 +119,8 @@ if __name__ == '__main__':
     ckpt_info = saver.get_ckpt_info()
     model_opt = ckpt_info['model_opt']
     model_opt_new = {
-        'inp_height': 128,
-        'inp_width': 448,
+        'inp_height': args.height,
+        'inp_width': args.width,
         'inp_depth': model_opt['inp_depth'],
         'cnn_filter_size': model_opt['cnn_filter_size'],
         'cnn_depth': model_opt['cnn_depth'],
