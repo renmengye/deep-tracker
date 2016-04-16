@@ -30,9 +30,6 @@ def get_model(opt, device='/cpu:0'):
     cnn_filter_size = opt['cnn_filter_size']
     cnn_depth = opt['cnn_depth']
     cnn_pool = opt['cnn_pool']
-    mlp_dims = opt['mlp_dims']
-    mlp_dropout = opt['mlp_dropout']
-    wd = opt['weight_decay']
     trained_model = opt['trained_model']
 
 ############################
@@ -41,8 +38,7 @@ def get_model(opt, device='/cpu:0'):
     with tf.device(get_device_fn(device)):
         x = tf.placeholder(
             'float', [None, inp_height, inp_width, inp_depth], name='x')
-        phase_train = tf.placeholder('bool', name='phase_train')
-        y_gt = tf.placeholder('float', [None], name='y_gt')
+        phase_train = tf.constant(False)
 
 ############################
 # Feature CNN definition
@@ -50,20 +46,21 @@ def get_model(opt, device='/cpu:0'):
         cnn_filters = cnn_filter_size + [1]
         cnn_channels = [inp_depth] + cnn_depth + [1]
         cnn_nlayers = len(cnn_filter_size)
-        cnn_use_bn = [True] * cnn_nlayers
+        cnn_use_bn = [True] * cnn_nlayers + [False]
         cnn_act = [tf.nn.relu] * cnn_nlayers + [tf.sigmoid]
 
         h5f = h5py.File(trained_model, 'r')
         cnn_init_w = [{'w': h5f['cnn_{}_w'.format(ii)][:],
                        'b': h5f['cnn_{}_b'.format(ii)][:],
-                       'beta_0': h5f['cnn_{}_beta'.format(ii)][:],
-                       'gamma_0': h5f['cnn_{}_gamma'.format(ii)][:]}
+                       'beta_0': h5f['cnn_{}_0_beta'.format(ii)][:],
+                       'gamma_0': h5f['cnn_{}_0_gamma'.format(ii)][:]}
                       for ii in xrange(cnn_nlayers)]
 
         cnn_init_w.append({
             'w': h5f['mlp_0_w'][:].reshape([1, 1, cnn_channels[-1], 1]),
             'b': h5f['mlp_0_b'][:].reshape([1])
         })
+
         cnn_frozen = [True] * (cnn_nlayers + 1)
 
         cnn = nn.cnn(cnn_filters, cnn_channels, cnn_pool, cnn_act,
