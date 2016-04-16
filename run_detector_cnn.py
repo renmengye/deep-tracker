@@ -130,9 +130,9 @@ if __name__ == '__main__':
 
     log.info('Loading dataset')
     dataset = get_dataset()
+    num_ex = dataset['images_0'].shape[0]
 
     sess = tf.Session()
-    num_ex = dataset['labels'].shape[0]
     get_batch = _get_batch_fn(dataset)
 
     def run_samples():
@@ -146,7 +146,9 @@ if __name__ == '__main__':
             pass
 
         for _set in _ssets:
-            _x = get_batch(np.arange(min(num_ex, 10)))
+            idx = np.arange(num_ex)
+            np.shuffle(idx)
+            _x = get_batch(idx[:10])
             fname_output = os.path.join(args.output, 'output.png')
             _run_samples(_x, fname_output)
         pass
