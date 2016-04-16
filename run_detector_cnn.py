@@ -113,6 +113,7 @@ if __name__ == '__main__':
     model_opt_new = {
         'inp_height': 128,
         'inp_width': 448,
+        'inp_depth': opt['inp_depth'],
         'cnn_filter_size': model_opt['cnn_filter_size'],
         'cnn_depth': model_opt['cnn_depth'],
         'cnn_pool': model_opt['cnn_pool'],
