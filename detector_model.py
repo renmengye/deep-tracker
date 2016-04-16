@@ -3,7 +3,9 @@ import cslab_environ
 import nnlib as nn
 import numpy as np
 import tensorflow as tf
+import logger
 
+log = logger.get()
 
 def get_device_fn(device):
     """Choose device for different ops."""
