@@ -136,6 +136,7 @@ if __name__ == '__main__':
     num_ex = dataset['images_0'].shape[0]
 
     sess = tf.Session()
+    sess.run(tf.initialize_all_variables())
     get_batch = _get_batch_fn(dataset)
 
     def run_samples():
