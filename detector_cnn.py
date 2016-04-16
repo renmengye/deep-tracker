@@ -50,15 +50,15 @@ def get_model(opt, device='/cpu:0'):
         cnn_act = [tf.nn.relu] * cnn_nlayers + [tf.sigmoid]
 
         h5f = h5py.File(trained_model, 'r')
-        cnn_init_w = [{'w': h5f['cnn_{}_w'.format(ii)][:],
-                       'b': h5f['cnn_{}_b'.format(ii)][:],
+        cnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
+                       'b': h5f['cnn_b_{}'.format(ii)][:],
                        'beta_0': h5f['cnn_{}_0_beta'.format(ii)][:],
                        'gamma_0': h5f['cnn_{}_0_gamma'.format(ii)][:]}
                       for ii in xrange(cnn_nlayers)]
 
         cnn_init_w.append({
-            'w': h5f['mlp_0_w'][:].reshape([1, 1, cnn_channels[-1], 1]),
-            'b': h5f['mlp_0_b'][:].reshape([1])
+            'w': h5f['mlp_w_0'][:].reshape([1, 1, cnn_channels[-1], 1]),
+            'b': h5f['mlp_b_0'][:].reshape([1])
         })
 
         cnn_frozen = [True] * (cnn_nlayers + 1)
