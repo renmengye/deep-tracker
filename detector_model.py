@@ -64,7 +64,6 @@ def get_model(opt, device='/cpu:0'):
         cnn = nn.cnn(cnn_filter_size, cnn_channels, cnn_pool, cnn_act,
                      cnn_use_bn, 
                      model=model, phase_train=phase_train, wd=wd, scope='cnn')
-        log.fatal(model)
         subsample = np.array(cnn_pool).prod()
         cnn_h = inp_height / subsample
         cnn_w = inp_width / subsample
