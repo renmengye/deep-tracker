@@ -56,7 +56,7 @@ def plot_output(fname, x, y):
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
-            if jj % 2 == 0
+            if jj % 2 == 0:
                 axarr[row, col].imshow(cv2.resize(x[ii], (448, 128)))
             else:
                 axarr[row, col].imshow(cv2.resize(y[ii], (448, 128)))
