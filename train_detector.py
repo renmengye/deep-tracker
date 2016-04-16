@@ -51,7 +51,7 @@ def get_dataset(opt):
     return dataset
 
 
-def plot_output(fname, x1, y_gt, y_out):
+def plot_output(fname, x, y_gt, y_out):
     num_ex = y_out.shape[0] / 8
     num_items = 8
     num_row, num_col, calc = pu.calc_row_col(
@@ -80,7 +80,7 @@ def _get_batch_fn(dataset):
         y_bat = dataset['labels'][idx]
         x_bat, y_bat = preprocess(x_bat, y_bat)
 
-        return x1_bat, x2_bat, y_bat
+        return x_bat, y_bat
 
     return get_batch
 
@@ -410,11 +410,11 @@ if __name__ == '__main__':
 
     def run_samples():
         """Samples"""
-        def _run_samples(x1, x2, y_gt, fname):
+        def _run_samples(x, y_gt, fname):
             _outputs = ['y_out']
-            _feed_dict = {m['x1']: x1, m['x2']: x2, m['phase_train']: False}
+            _feed_dict = {m['x']: x, m['phase_train']: False}
             r = _run_model(sess, m, _outputs, _feed_dict)
-            plot_output(fname, x1, x2, y_gt, r['y_out'])
+            plot_output(fname, x, y_gt, r['y_out'])
 
             pass
 
@@ -425,12 +425,12 @@ if __name__ == '__main__':
             _get_batch = get_batch_train if _is_train else get_batch_valid
             _num_ex = num_ex_train if _is_train else num_ex_valid
             log.info('Plotting {} samples'.format(_set))
-            _x1, _x2, _y = _get_batch(
+            _x, _y = _get_batch(
                 np.arange(min(_num_ex, args.num_samples_plot)))
 
             labels = ['output']
             fname_output = samples['output_{}'.format(_set)].get_fname()
-            _run_samples(_x1, _x2, _y, fname_output)
+            _run_samples(_x, _y, fname_output)
 
             if not samples['output_{}'.format(_set)].is_registered():
                 for _name in labels:
@@ -453,11 +453,11 @@ if __name__ == '__main__':
         r = {}
 
         for bb in xrange(num_batch):
-            _x1, _x2, _y = batch_iter.next()
-            _feed_dict = {m['x1']: _x1, m['x2']: _x2,
-                          m['phase_train']: phase_train, m['y_gt']: _y, }
+            _x, _y = batch_iter.next()
+            _feed_dict = {m['x']: _x, m['phase_train']: phase_train,
+                          m['y_gt']: _y, }
             _r = _run_model(sess, m, outputs, _feed_dict)
-            bat_sz = _x1.shape[0]
+            bat_sz = _x.shape[0]
 
             for key in _r.iterkeys():
                 if key in r:
@@ -482,13 +482,12 @@ if __name__ == '__main__':
 
         pass
 
-    def train_step(step, x1, x2, y):
+    def train_step(step, x, y):
         """Train step"""
 
         _start_time = time.time()
         _outputs = ['loss', 'train_step']
-        _feed_dict = {m['x1']: x1, m['x2']: x2,
-                      m['phase_train']: True, m['y_gt']: y}
+        _feed_dict = {m['x']: x, m['phase_train']: True, m['y_gt']: y}
         r = _run_model(sess, m, _outputs, _feed_dict)
         _step_time = (time.time() - _start_time) * 1000
 
@@ -517,7 +516,7 @@ if __name__ == '__main__':
                                             progress_bar=False)
         outputs_trainval = get_outputs_trainval()
 
-        for _x1, _x2, _y in BatchIterator(num_ex_train,
+        for _x, _y in BatchIterator(num_ex_train,
                                           batch_size=batch_size,
                                           get_fn=get_batch_train,
                                           cycle=True,
@@ -542,7 +541,7 @@ if __name__ == '__main__':
                 pass
 
             # Train step
-            train_step(step, _x1, _x2, _y)
+            train_step(step, _x, _y)
 
             # Model ID reminder
             if step % (10 * train_opt['steps_per_log']) == 0:
