@@ -56,6 +56,8 @@ def get_model(opt, device='/cpu:0'):
                        'gamma_0': h5f['cnn_{}_0_gamma'.format(ii)][:]}
                       for ii in xrange(cnn_nlayers)]
 
+        log.error(h5f['mlp_w_0'].shape)
+        log.error(cnn_channels)
         cnn_init_w.append({
             'w': h5f['mlp_w_0'][:].reshape([1, 1, cnn_channels[-1], 1]),
             'b': h5f['mlp_b_0'][:].reshape([1])
