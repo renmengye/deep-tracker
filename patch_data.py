@@ -167,10 +167,10 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     std_box_height = np.sqrt(
         ((box_height - mean_box_height) * (box_height - mean_box_height) *
          gt_bbox[:, :, 4]).sum() / num_boxes)
-    log.info('Mean box height {}'.format(mean_box_height))
-    log.info('Mean box width {}'.format(mean_box_width))
-    log.info('Std box height {}'.format(std_box_height))
-    log.info('Std box width {}'.format(std_box_width))
+    # log.info('Mean box height {}'.format(mean_box_height))
+    # log.info('Mean box width {}'.format(mean_box_width))
+    # log.info('Std box height {}'.format(std_box_height))
+    # log.info('Std box width {}'.format(std_box_width))
 
     for ii in xrange(num):
         frames = np.array([0])
@@ -187,12 +187,12 @@ def get_neg_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
         bbox_height = max(20, bbox_height)
         bbox_width = int(random.normal(mean_box_width, std_box_width))
         bbox_width = max(20, bbox_width)
-        log.error((bbox_height, bbox_width))
+        # log.error((bbox_height, bbox_width))
         bbox_y = int(random.uniform(0, im_height - bbox_height))
         bbox_x = int(random.uniform(0, im_width - bbox_width))
         bbox = [bbox_x, bbox_y, bbox_x + bbox_width, bbox_y + bbox_height]
-        log.info(bbox)
-        log.info([im_height, im_width])
+        # log.info(bbox)
+        # log.info([im_height, im_width])
         output_images[ii] = crop_patch(
             image, bbox, patch_size, padding_mean, padding_noise,
             center_noise, random)
