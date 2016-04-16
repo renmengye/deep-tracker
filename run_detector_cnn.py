@@ -23,6 +23,7 @@ from lazy_registerer import LazyRegisterer
 from log_manager import LogManager
 from saver import Saver
 from time_series_logger import TimeSeriesLogger
+from sharded_hdf5 import ShardedFileReader
 
 import matplotlib
 matplotlib.use('Agg')
@@ -39,7 +40,7 @@ log = logger.get()
 def get_dataset():
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking'
-    dataset = data.get_dataset(folder, split='train')[0]
+    dataset = ShardedFileReader(data.get_dataset(folder, split='train'))[0]
     return dataset
 
 
