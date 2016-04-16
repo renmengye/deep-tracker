@@ -122,7 +122,7 @@ if __name__ == "__main__":
     batch_size = 50     
     display_iter = 10
     draw_iter = 50
-    seq_length = 30     # sequence length for training
+    seq_length = 2     # sequence length for training
     snapshot_iter = 1000
     height = 128
     width = 448

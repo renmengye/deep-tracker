@@ -89,10 +89,10 @@ def compute_IOU(bboxA, bboxB):
     y2_min = tf.minimum(y2A, y2B)
 
     overlap_flag = tf.logical_and( tf.less(x1_max, x2_min), tf.less(y1_max, y2_min) )
-    overlap_area = tf.mul(tf.to_float(overlap_flag), tf.mul( x2_min - x1_max, y2_min - y1_max ) )
+    overlap_area = tf.mul(tf.to_float(overlap_flag), tf.mul( x2_min - x1_max, y2_min - y1_max ) )    
 
     # compute union
-    areaA = tf.mul( x2A - x1A, y2A - y1A )
+    areaA = tf.mul( x2A - x1A, y2A - y1A )    
     areaB = tf.mul( x2B - x1B, y2B - y1B )
     union_area = areaA + areaB - overlap_area
 
@@ -123,7 +123,7 @@ def transform_box(bbox, height, width):
     y2 = y + h/2 
 
     bbox_out = tf.round(tf.concat(1, [x1, y1, x2, y2]))
-
+    
     return bbox_out
 
 def build_tracking_model(opt, device='/cpu:0'):
@@ -229,22 +229,21 @@ def build_tracking_model(opt, device='/cpu:0'):
             rnn_hidden_feat[tt] = tf.slice(rnn_state[tt], [0, rnn_hidden_dim], [-1, rnn_hidden_dim])
                         
             # predict bbox and score            
-            raw_predict_bbox = bbox_mlp(rnn_hidden_feat[tt])            
-            predict_bbox[tt] = transform_box(tf.pack(raw_predict_bbox), height, width)
-            predict_score[tt] = score_mlp(rnn_hidden_feat[tt])
-            
+            raw_predict_bbox = bbox_mlp(rnn_hidden_feat[tt])[0]           
+            predict_bbox[tt] = transform_box(raw_predict_bbox, height, width)
+            predict_score[tt] = score_mlp(rnn_hidden_feat[tt])[0]
+
             IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
-            print IOU_score[tt]
         
         model['IOU_score'] = IOU_score
-        model['predict_bbox'] = predict_bbox
-        model['predict_score'] = predict_score
-
+        model['predict_bbox'] = predict_bbox[:-1]
+        model['predict_score'] = predict_score[:-1]
+                
         # IOU loss + cross-entropy loss
         batch_size_f = tf.to_float(batch_size)
         rnn_seq_len_f = tf.to_float(rnn_seq_len)
-        IOU_loss = tf.reduce_sum(gt_score * (1 - tf.concat(0, tf.pack(IOU_score)))) / (batch_size_f * rnn_seq_len_f)
-        cross_entropy = -tf.reduce_sum(gt_score * tf.log(predict_score) + (1 - gt_score) * tf.log(1 - predict_score)) / (batch_size_f * rnn_seq_len_f)
+        IOU_loss = tf.reduce_sum(gt_score * (1 - tf.concat(1, IOU_score))) / (batch_size_f * rnn_seq_len_f)
+        cross_entropy = -tf.reduce_sum(gt_score * tf.log(tf.concat(1, predict_score[:-1])) + (1 - gt_score) * tf.log(1 - tf.concat(1, predict_score[:-1]))) / (batch_size_f * rnn_seq_len_f)
 
         model['IOU_loss'] = IOU_loss
         model['CE_loss'] = cross_entropy
