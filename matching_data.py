@@ -57,7 +57,7 @@ def get_neg_pair(num, images, gt_bbox, patch_height, patch_width, padding_mean, 
         [num, 2, patch_height, patch_width, 3], dtype='uint8')
     output_labels = np.zeros([num], dtype='uint8')
     num_obj = gt_bbox.shape[0]
-    
+
     for ii in xrange(num):
         obj_id1 = 0
         obj_id2 = 0
@@ -239,7 +239,7 @@ def assemble_dataset(dataset_images, dataset_labels, seqs, random, usage='match'
     patch_width = dataset_images[0].shape[-2]
 
     if usage == 'match':
-        final_images = np.zeros([num_ex, patch_height, patch_width, 3],
+        final_images = np.zeros([num_ex, 2, patch_height, patch_width, 3],
                                 dtype='uint8')
     elif usage == 'detect':
         final_images = np.zeros([num_ex, patch_height, patch_width, 3],
