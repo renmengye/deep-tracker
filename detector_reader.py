@@ -6,8 +6,8 @@ import os
 import sys
 import tensorflow as tf
 
-from utils import logger
-from utils.saver import Saver
+import logger
+from saver import Saver
 
 import detector_model as model
 
