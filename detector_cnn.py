@@ -1,9 +1,12 @@
 import cslab_environ
 
 import h5py
+import logger
 import nnlib as nn
 import numpy as np
 import tensorflow as tf
+
+log = logger.get()
 
 
 def get_device_fn(device):
