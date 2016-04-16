@@ -124,7 +124,7 @@ def _add_model_args(parser):
     kCnnFilterSize = '3,3,3,3,3,3,3,3'
     kCnnDepth = '16,16,32,32,64,64,96,96'
     kCnnPool = '1,2,1,2,1,2,1,2'
-    kMlpDims = '256,128,1'
+    kMlpDims = '1'
     kMlpDropout = 0
     kWeightDecay = 5e-5
     kBaseLearnRate = 1e-3

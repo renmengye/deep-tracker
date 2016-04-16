@@ -65,7 +65,8 @@ def get_model(opt, device='/cpu:0'):
         subsample = np.array(cnn_pool).prod()
         cnn_h = inp_height / subsample
         cnn_w = inp_width / subsample
-        feat_dim = cnn_h * cnn_w * cnn_channels[-1]
+        # feat_dim = cnn_h * cnn_w * cnn_channels[-1]
+        feat_dim = cnn_channels[-1]
 
 ############################
 # Matching MLP definition
@@ -81,7 +82,8 @@ def get_model(opt, device='/cpu:0'):
 # Computation graph
 ############################
         f = cnn(x)
-        f = tf.reshape(f[-1], [-1, feat_dim])
+        f = nn.avg_pool(f[-1], 3)
+        f = tf.reshape(f, [-1, feat_dim])
         y_out = mlp(f)[-1]
         y_out = tf.reshape(y_out, [-1])
 
