@@ -119,6 +119,7 @@ if __name__ == '__main__':
         'cnn_pool': model_opt['cnn_pool'],
         'trained_model': os.path.join(args.results, args.model_id, 'weights.h5')
     }
+    log.warning(model_opt_new['trained_model'])
 
     # Train loop options
     log.info('Building model')
