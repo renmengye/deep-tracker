@@ -226,7 +226,7 @@ def get_pos_patch(num, images, gt_bbox, patch_height, patch_width, padding_mean,
     return output_images, output_labels
 
 
-def assemble_dataset(dataset_images, dataset_labels, seqs, usage='match', shuffle=True):
+def assemble_dataset(dataset_images, dataset_labels, seqs, random, usage='match', shuffle=True):
     num_ex = 0
     for ss in xrange(len(seqs)):
         num_ex += dataset_images[ss].shape[0]
@@ -376,7 +376,7 @@ def get_dataset(folder, opt, split='train', seqs=None, usage='match'):
             pass
         pass
 
-    dataset = assemble_dataset(dataset_images, dataset_labels, seqs,
+    dataset = assemble_dataset(dataset_images, dataset_labels, seqs, random,
                                usage=usage, shuffle=shuffle)
 
     return dataset
