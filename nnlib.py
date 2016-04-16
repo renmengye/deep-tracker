@@ -244,8 +244,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                 log.info('Filter: {}, Trainable: {}'.format(
                     [f[ii], f[ii], ch[ii], ch[ii + 1]], trainable))
 
-                log.fatal(model)
-                if model:
+                if model is not None:
                     for name, param in zip(['w', 'b'], [w[ii], b[ii]]):
                         key = '{}_{}_{}'.format(scope, name, ii)
                         log.warning(key)
@@ -298,7 +297,7 @@ def cnn(f, ch, pool, act, use_bn, phase_train=None, wd=None, scope='cnn', model=
                             init_gamma=init_gamma,
                             model=model)
 
-                        if model:
+                        if model is not None:
                             model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                                 tf.reduce_sum(bm) / out_ch
                             model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
@@ -383,7 +382,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
 
                 in_ch = out_ch
 
-                if model:
+                if model is not None:
                     model['{}_w_{}'.format(scope, ii)] = w[ii]
                     model['{}_b_{}'.format(scope, ii)] = b[ii]
 
@@ -452,7 +451,7 @@ def dcnn(f, ch, pool, act, use_bn, skip_ch=None, phase_train=None, wd=None, scop
                             init_gamma=init_gamma,
                             model=model)
 
-                        if model:
+                        if model is not None:
                             model['{}_{}_bm_{}'.format(scope, ii, copy[0])] = \
                                 tf.reduce_sum(bm) / out_ch
                             model['{}_{}_bv_{}'.format(scope, ii, copy[0])] = \
@@ -529,7 +528,7 @@ def mlp(dims, act, add_bias=True, dropout_keep=None, phase_train=None, wd=None, 
                     log.info('Bias: {} Trainable: {}'.format(
                         [nout], trainable))
 
-                if model:
+                if model is not None:
                     model['{}_w_{}'.format(scope, ii)] = w[ii]
                     if add_bias:
                         model['{}_b_{}'.format(scope, ii)] = b[ii]
@@ -693,7 +692,7 @@ def lstm(inp_dim, hid_dim, wd=None, scope='lstm', model=None, init_weights=None,
             initializer=tf.constant_initializer(0.0),
             name='b_o', trainable=trainable)
 
-        if model:
+        if model is not None:
             model['{}_w_xi'.format(scope)] = w_xi
             model['{}_w_hi'.format(scope)] = w_hi
             model['{}_b_i'.format(scope)] = b_i
