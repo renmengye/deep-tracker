@@ -38,7 +38,7 @@ log = logger.get()
 
 def get_dataset():
     dataset = {}
-    folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
+    folder = '/ais/gobi3/u/mren/data/kitti/tracking'
     dataset['train'] = data.get_dataset(folder, split='train')
     dataset['valid'] = data.get_dataset(folder, split='valid')
     return dataset
