@@ -376,8 +376,8 @@ def get_dataset(folder, opt, split='train', seqs=None, usage='match'):
             pass
         pass
 
-    dataset = assemble_match_dataset(
-        dataset_images, dataset_labels, seqs, usage=usage, shuffle=shuffle)
+    dataset = assemble_dataset(dataset_images, dataset_labels, seqs,
+                               usage=usage, shuffle=shuffle)
 
     return dataset
 
