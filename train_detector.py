@@ -348,7 +348,7 @@ if __name__ == '__main__':
         model_id = ckpt_info['model_id']
         exp_folder = train_opt['restore']
     else:
-        model_id = _get_model_id('matching')
+        model_id = _get_model_id('detector')
         step = 0
         exp_folder = os.path.join(train_opt['results'], model_id)
         saver = Saver(exp_folder, model_opt=model_opt, data_opt=data_opt)
