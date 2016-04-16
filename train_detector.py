@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 import plot_utils as pu
 
 import patch_data as data
-import matching_model as model
+import detector_model as model
 
 
 log = logger.get()
@@ -44,16 +44,16 @@ def get_dataset(opt):
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
     dataset['train'] = data.get_dataset(
-        folder, opt, split='train', usage='match')
+        folder, opt, split='train', usage='detect')
     dataset['valid'] = data.get_dataset(
-        folder, opt, split='valid', usage='match')
+        folder, opt, split='valid', usage='detect')
 
     return dataset
 
 
-def plot_output(fname, x1, x2, y_gt, y_out):
-    num_ex = y_out.shape[0]
-    num_items = 2
+def plot_output(fname, x1, y_gt, y_out):
+    num_ex = y_out.shape[0] / 8
+    num_items = 8
     num_row, num_col, calc = pu.calc_row_col(
         num_ex, num_items, max_items_per_row=9)
 
@@ -63,13 +63,10 @@ def plot_output(fname, x1, x2, y_gt, y_out):
     for ii in xrange(num_ex):
         for jj in xrange(num_items):
             row, col = calc(ii, jj)
-            if jj == 0:
-                axarr[row, col].imshow(x1[ii])
-            else:
-                axarr[row, col].imshow(x2[ii])
-
+            kk = ii * num_items + jj
+            axarr[row, col].imshow(x[kk])
             axarr[row, col].text(0, 0, '{:.2f} {:.2f}'.format(
-                y_gt[ii], y_out[ii]),
+                y_gt[kk], y_out[kk]),
                 color=(0, 0, 0), size=8)
 
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
@@ -79,10 +76,9 @@ def plot_output(fname, x1, x2, y_gt, y_out):
 
 def _get_batch_fn(dataset):
     def get_batch(idx):
-        x1_bat = dataset['images_0'][idx]
-        x2_bat = dataset['images_1'][idx]
+        x_bat = dataset['images'][idx]
         y_bat = dataset['labels'][idx]
-        x1_bat, x2_bat, y_bat = preprocess(x1_bat, x2_bat, y_bat)
+        x_bat, y_bat = preprocess(x_bat, y_bat)
 
         return x1_bat, x2_bat, y_bat
 
@@ -99,10 +95,9 @@ def _run_model(sess, m, names, feed_dict):
     return results_dict
 
 
-def preprocess(x1, x2, y):
+def preprocess(x, y):
     """Preprocess training data."""
-    return (x1.astype('float32') / 255,
-            x2.astype('float32') / 255,
+    return (x.astype('float32') / 255,
             y.astype('float32'))
 
 
