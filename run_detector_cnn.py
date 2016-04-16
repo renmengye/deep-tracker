@@ -90,7 +90,6 @@ def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--pretrain_cnn', default=None)
     parser.add_argument('--model_id', default=None)
     parser.add_argument(
         '--results', default='/ais/gobi3/u/mren/results/deep-tracker')
@@ -116,7 +115,8 @@ if __name__ == '__main__':
         'inp_width': 448,
         'cnn_filter_size': model_opt['cnn_filter_size'],
         'cnn_depth': model_opt['cnn_depth'],
-        'cnn_pool': model_opt['cnn_pool']
+        'cnn_pool': model_opt['cnn_pool'],
+        'trained_model': os.path.join(args.results, args.model_id, 'weights.h5')
     }
 
     # Train loop options
