@@ -98,8 +98,11 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length):
 
     draw_pred_bbox, draw_IOU_score = sess.run([tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
 
-    num_row = 8
+    draw_pred_bbox = np.squeeze(draw_pred_bbox)
+    draw_IOU_score = np.squeeze(draw_IOU_score)
+
     num_col = 2
+    num_row = seq_length / num_col
     plot_frame_with_bbox(draw_img_name, draw_imgs, draw_pred_bbox, draw_gt_box, draw_IOU_score, num_row, num_col)
 
 
@@ -109,11 +112,12 @@ if __name__ == "__main__":
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
     device = '/gpu:2'
     
-    max_iter = 1000 
-    batch_size = 20     
+    max_iter = 100000 
+    batch_size = 50     
     display_iter = 10
     draw_iter = 10
-    seq_length = 2     # sequence length for training
+    seq_length = 30     # sequence length for training
+    draw_seq_length = 10     # sequence length for drawing
     snapshot_iter = 1000
     height = 128
     width = 448
@@ -275,11 +279,11 @@ if __name__ == "__main__":
 
             # draw bbox on selected data
             if (step+1) % draw_iter == 0:
-                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, draw_seq_length)
+                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, draw_seq_length)
+                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, draw_seq_length)
+                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, draw_seq_length)
+                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, draw_seq_length)
 
             step += 1
 
