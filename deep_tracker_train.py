@@ -55,7 +55,7 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col)
     plt.savefig(fname, dpi=80)
     plt.close('all')
 
-def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length):
+def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width):
 
     count_draw = 0
     idx_draw_frame = 0
@@ -70,7 +70,8 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length):
         if not skip_empty:
             draw_imgs.append(cv2.resize(draw_raw_imgs[idx_draw_frame], (width, height), interpolation = cv2.INTER_CUBIC))
 
-            tmp_box = np.asarray(draw_raw_gt_bbox[0, idx_draw_frame, :4])
+            # draw 0-th object in the sequence
+            tmp_box = np.array(draw_raw_gt_bbox[0, idx_draw_frame, :4])
             tmp_box[0] = tmp_box[0] / draw_raw_imgs.shape[2] * width
             tmp_box[1] = tmp_box[1] / draw_raw_imgs.shape[1] * height
             tmp_box[2] = tmp_box[2] / draw_raw_imgs.shape[2] * width
@@ -83,18 +84,18 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length):
 
     return draw_imgs, draw_gt_box
 
-def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length):
+def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, height, width):
     
     draw_data = data[idx]
     draw_raw_imgs = draw_data['images_0']
     draw_raw_gt_bbox = draw_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
 
-    draw_imgs, draw_gt_box = collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length)
+    draw_imgs, draw_gt_box = collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width)
 
     feed_data = {tracking_model['imgs']: np.expand_dims(draw_imgs, 0), 
-             tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
-             tracking_model['gt_bbox']: np.expand_dims(draw_gt_box, 0),                                     
-             tracking_model['phase_train']: False}
+                 tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
+                 tracking_model['gt_bbox']: np.expand_dims(draw_gt_box, 0),                                     
+                 tracking_model['phase_train']: False}
 
     draw_pred_bbox, draw_IOU_score = sess.run([tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
 
@@ -113,9 +114,9 @@ if __name__ == "__main__":
     device = '/gpu:2'
     
     max_iter = 100000 
-    batch_size = 50     
+    batch_size = 20     
     display_iter = 10
-    draw_iter = 10
+    draw_iter = 20
     seq_length = 30     # sequence length for training
     snapshot_iter = 1000
     height = 128
@@ -240,7 +241,7 @@ if __name__ == "__main__":
 
                 batch_img.append(current_seq)
 
-                tmp_box = np.asarray(gt_bbox[idx_obj, idx_frame : idx_frame + seq_length, :4])
+                tmp_box = np.array(gt_bbox[idx_obj, idx_frame : idx_frame + seq_length, :4])
                 tmp_box[:, 0] = tmp_box[:, 0] / raw_imgs.shape[2] * width
                 tmp_box[:, 1] = tmp_box[:, 1] / raw_imgs.shape[1] * height
                 tmp_box[:, 2] = tmp_box[:, 2] / raw_imgs.shape[2] * width
@@ -278,11 +279,11 @@ if __name__ == "__main__":
 
             # draw bbox on selected data
             if (step+1) % draw_iter == 0:
-                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, seq_length)
-                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, seq_length, height, width)
 
             step += 1
 
