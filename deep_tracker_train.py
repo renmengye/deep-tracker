@@ -39,14 +39,14 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col)
                     pred_bbox[idx][2] - pred_bbox[idx][0],
                     pred_bbox[idx][3] - pred_bbox[idx][1],
                     fill=False,
-                    color='b'))
+                    color='r'))
 
             axarr[ii, jj].add_patch(patches.Rectangle(
                     (gt_bbox[idx][0], gt_bbox[idx][1]),
                     gt_bbox[idx][2] - gt_bbox[idx][0],
                     gt_bbox[idx][3] - gt_bbox[idx][1],
                     fill=False,
-                    color='r'))
+                    color='b'))
 
             axarr[ii, jj].text(0, 0, ("%5.2f" % iou[idx]),
                color=(0, 0, 0), size=8)
@@ -114,11 +114,11 @@ if __name__ == "__main__":
     device = '/gpu:2'
     
     max_iter = 100000 
-    batch_size = 20     
+    batch_size = 40     
     display_iter = 10
-    draw_iter = 20
+    draw_iter = 10
     seq_length = 30     # sequence length for training
-    snapshot_iter = 1000
+    snapshot_iter = 500
     height = 128
     width = 448
 
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver()
-    nodes_run = ['train_step', 'IOU_loss', 'CE_loss', 'predict_bbox', 'predict_score']
+    nodes_run = ['train_step', 'IOU_loss', 'IOU_score', 'CE_loss', 'predict_bbox', 'predict_score']
     node_list = [tracking_model[i] for i in nodes_run]
 
     # training 
