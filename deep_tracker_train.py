@@ -117,7 +117,6 @@ if __name__ == "__main__":
     display_iter = 10
     draw_iter = 10
     seq_length = 30     # sequence length for training
-    draw_seq_length = 10     # sequence length for drawing
     snapshot_iter = 1000
     height = 128
     width = 448
@@ -279,11 +278,11 @@ if __name__ == "__main__":
 
             # draw bbox on selected data
             if (step+1) % draw_iter == 0:
-                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, draw_seq_length)
-                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, draw_seq_length)
-                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, draw_seq_length)
-                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, draw_seq_length)
-                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, draw_seq_length)
+                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, seq_length)
+                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, seq_length)
 
             step += 1
 
