@@ -1,6 +1,7 @@
 from __future__ import division
 
 import cv2
+import h5py
 import tensorflow as tf
 import nnlib as nn
 import numpy as np
@@ -142,9 +143,12 @@ def build_tracking_model(opt, device='/cpu:0'):
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay_step = opt['learn_rate_decay_step']
     learn_rate_decay_rate = opt['learn_rate_decay_rate']
+    pretrain_model_filename = opt['pretrain_model_filename']
+    is_pretrain = opt['is_pretrain']
 
     with tf.device(get_device_fn(device)):
         phase_train = tf.placeholder('bool')
+
         # input image [B, T, H, W, C]
         imgs = tf.placeholder(tf.float32, [None, rnn_seq_len, height, width, num_channel])
         img_shape = tf.shape(imgs)
@@ -169,8 +173,18 @@ def build_tracking_model(opt, device='/cpu:0'):
         cnn_act = [tf.nn.relu] * cnn_nlayer
         cnn_use_bn = [use_bn] * cnn_nlayer
 
+        if is_pretrain:
+            h5f = h5py.File(pretrain_model_filename, 'r')
+            cnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
+                            'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
+                           for ii in xrange(cnn_nlayer)]
+            for ii in xrange(cnn_nlayer):
+                for w in ['beta', 'gamma']:
+                    cnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                        'ctrl_cnn_{}_{}_{}'.format(ii, w)][:]
+
         cnn_model = nn.cnn(cnn_filter, cnn_channel, cnn_pool, cnn_act,
-                      cnn_use_bn, phase_train=phase_train, wd=weight_decay)
+                      cnn_use_bn, phase_train=phase_train, wd=weight_decay, init_weights=cnn_init_w)
 
         # define a RNN(LSTM) model
         cnn_subsample = np.array(cnn_pool).prod()
@@ -238,14 +252,19 @@ def build_tracking_model(opt, device='/cpu:0'):
 
             IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
 
+        predict_bbox = tf.transpose(tf.pack(predict_bbox[:-1]), [1, 0, 2])
         model['IOU_score'] = tf.transpose(tf.pack(IOU_score), [1, 0, 2])
-        model['predict_bbox'] = tf.transpose(tf.pack(predict_bbox[:-1]), [1, 0, 2])
+        model['predict_bbox'] = predict_bbox
         model['predict_score'] = tf.transpose(tf.pack(predict_score[:-1]), [1, 0, 2])
                 
         # IOU loss + cross-entropy loss
         batch_size_f = tf.to_float(batch_size)
         rnn_seq_len_f = tf.to_float(rnn_seq_len)
         IOU_loss = tf.reduce_sum(gt_score * (- tf.concat(1, IOU_score))) / (batch_size_f * rnn_seq_len_f)
+        
+        # tmp_score = tf.tile(gt_score, tf.pack([1, 1, 4]))    
+        # L2_loss = tf.nn.l2_loss( (gt_bbox - predict_bbox)) / (4 * batch_size_f * rnn_seq_len_f)
+        
         cross_entropy = -tf.reduce_sum(gt_score * tf.log(tf.concat(1, predict_score[:-1])) + (1 - gt_score) * tf.log(1 - tf.concat(1, predict_score[:-1]))) / (batch_size_f * rnn_seq_len_f)
 
         model['IOU_loss'] = IOU_loss

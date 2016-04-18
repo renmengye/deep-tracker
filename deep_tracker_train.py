@@ -9,6 +9,7 @@ import os
 import cv2
 import math
 import logger
+import h5py
 
 import matplotlib
 matplotlib.use('Agg')
@@ -111,16 +112,20 @@ if __name__ == "__main__":
 
     # folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
-    device = '/gpu:2'
+    device = '/gpu:1'
     
     max_iter = 100000 
-    batch_size = 40     
+    batch_size = 5     
     display_iter = 10
     draw_iter = 10
     seq_length = 30     # sequence length for training
     snapshot_iter = 500
     height = 128
     width = 448
+    load_model = True
+    model_path = ''
+
+
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-001'
@@ -167,19 +172,21 @@ if __name__ == "__main__":
     # setting model
     opt_tracking = {}
     opt_tracking['rnn_seq_len'] = seq_length
-    opt_tracking['cnn_filter_size'] = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-    opt_tracking['cnn_num_filter'] = [8, 8, 16, 16, 32, 32, 32, 32, 64, 64]
-    opt_tracking['cnn_pool_size'] = [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+    opt_tracking['cnn_filter_size'] = [3,3,3,3,3,3,3,3]
+    opt_tracking['cnn_num_filter'] = [16,16,32,32,64,64,96,96]
+    opt_tracking['cnn_pool_size'] = [1,2,1,2,1,2,1,2]
     opt_tracking['img_channel'] = 3
     opt_tracking['use_batch_norm']= True
     opt_tracking['img_height'] = height
     opt_tracking['img_width'] = width
     opt_tracking['weight_decay'] = 1.0e-7
     opt_tracking['rnn_hidden_dim'] = 100
-    opt_tracking['base_learn_rate'] = 1.0e-3
+    opt_tracking['base_learn_rate'] = 1.0e-2
     opt_tracking['learn_rate_decay_step'] = 5000
     opt_tracking['learn_rate_decay_rate'] = 0.96
-    
+    opt_tracking['pretrain_model_filename'] = "/ais/gobi3/u/mren/results/deep-tracker/detector-20160417231457/weights.h5"
+    opt_tracking['is_pretrain'] = True
+
     tracking_model = build_tracking_model(opt_tracking, device)
 
     sess = tf.Session()
