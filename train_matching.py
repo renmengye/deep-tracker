@@ -29,7 +29,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import plot_utils as pu
 
-import patch_data as data
+from patch_data import KITTIPatchData
 import matching_model as model
 
 
@@ -43,10 +43,10 @@ def get_model(opt, device='/cpu:0'):
 def get_dataset(opt):
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
-    dataset['train'] = data.get_dataset(
-        folder, opt, split='train', usage='match')
-    dataset['valid'] = data.get_dataset(
-        folder, opt, split='valid', usage='match')
+    dataset['train'] = KITTIPatchData(
+        folder, opt, split='train', usage='match').get_dataset()
+    dataset['valid'] = KITTIPatchData(
+        folder, opt, split='valid', usage='match').get_dataset()
 
     return dataset
 
