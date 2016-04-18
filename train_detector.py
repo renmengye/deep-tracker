@@ -29,7 +29,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import plot_utils as pu
 
-import patch_data as data
+from patch_data import KITTIPatchData
 import detector_model as model
 
 
@@ -43,10 +43,10 @@ def get_model(opt, device='/cpu:0'):
 def get_dataset(opt):
     dataset = {}
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
-    dataset['train'] = data.get_dataset(
-        folder, opt, split='train', usage='detect')
-    dataset['valid'] = data.get_dataset(
-        folder, opt, split='valid', usage='detect')
+    dataset['train'] = KITTIPatchData(
+        folder, opt, split='train', usage='detect_multiscale').get_dataset()
+    dataset['valid'] = KITTIPatchData(
+        folder, opt, split='valid', usage='detect_multiscale').get_dataset()
 
     return dataset
 
@@ -102,8 +102,8 @@ def preprocess(x, y):
 
 
 def _add_dataset_args(parser):
-    kPatchHeight = 48
-    kPatchWidth = 48
+    kPatchHeight = 32
+    kPatchWidth = 32
     kPadding = 0.2
     kPaddingNoise = 0.2
     kCenterNoise = 0.2
