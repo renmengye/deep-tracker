@@ -175,13 +175,19 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         if is_pretrain:
             h5f = h5py.File(pretrain_model_filename, 'r')
-            cnn_init_w = [{'w': h5f['ctrl_cnn_w_{}'.format(ii)][:],
-                            'b': h5f['ctrl_cnn_b_{}'.format(ii)][:]}
+
+            # for key, value in h5f.iteritems():
+            #     print key, value
+
+            cnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],
+                            'b': h5f['cnn_b_{}'.format(ii)][:]}
                            for ii in xrange(cnn_nlayer)]
+
             for ii in xrange(cnn_nlayer):
-                for w in ['beta', 'gamma']:
-                    cnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
-                        'ctrl_cnn_{}_{}_{}'.format(ii, w)][:]
+                for tt in xrange(2 * rnn_seq_len):
+                    for w in ['beta', 'gamma']:
+                        cnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
+                            'cnn_{}_0_{}'.format(ii, w)][:]                        
 
         cnn_model = nn.cnn(cnn_filter, cnn_channel, cnn_pool, cnn_act,
                       cnn_use_bn, phase_train=phase_train, wd=weight_decay, init_weights=cnn_init_w)
@@ -193,6 +199,8 @@ def build_tracking_model(opt, device='/cpu:0'):
         rnn_dim = cnn_channel[-1]
         cnn_out_dim = rnn_h * rnn_w * rnn_dim   # input dimension of RNN
         rnn_inp_dim = cnn_out_dim * 2
+
+        print "RNN input dim = %d" % rnn_inp_dim
 
         rnn_state = [None] * (rnn_seq_len + 1)
         predict_bbox = [None] * (rnn_seq_len + 1)
@@ -222,7 +230,7 @@ def build_tracking_model(opt, device='/cpu:0'):
             # extract global CNN feature map
             h_cnn_global = cnn_model(imgs[:, tt, :, :, :])
             cnn_global_feat_map = h_cnn_global[-1]
-            # cnn_global_feat_map = tf.stop_gradient(cnn_global_feat_map) # fix CNN during training
+            cnn_global_feat_map = tf.stop_gradient(cnn_global_feat_map) # fix CNN during training
             model['cnn_global_feat_map'] = cnn_global_feat_map
 
             # extract ROI CNN feature map 
@@ -236,7 +244,7 @@ def build_tracking_model(opt, device='/cpu:0'):
 
             h_cnn_roi = cnn_model(tf.transpose(tf.pack(ROI_img), [1, 2, 3, 0]))
             cnn_roi_feat_map = h_cnn_roi[-1]
-            # cnn_roi_feat_map = tf.stop_gradient(cnn_roi_feat_map)   # fix CNN during training
+            cnn_roi_feat_map = tf.stop_gradient(cnn_roi_feat_map)   # fix CNN during training
             model['cnn_roi_feat_map'] = cnn_roi_feat_map
 
             # going through a RNN

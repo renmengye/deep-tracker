@@ -9,7 +9,6 @@ import os
 import cv2
 import math
 import logger
-import h5py
 
 import matplotlib
 matplotlib.use('Agg')
@@ -112,20 +111,16 @@ if __name__ == "__main__":
 
     # folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
-    device = '/gpu:1'
+    device = '/gpu:2'
     
     max_iter = 100000 
-    batch_size = 5     
+    batch_size = 20    
     display_iter = 10
     draw_iter = 10
     seq_length = 30     # sequence length for training
     snapshot_iter = 500
     height = 128
     width = 448
-    load_model = True
-    model_path = ''
-
-
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-001'
@@ -181,8 +176,8 @@ if __name__ == "__main__":
     opt_tracking['img_width'] = width
     opt_tracking['weight_decay'] = 1.0e-7
     opt_tracking['rnn_hidden_dim'] = 100
-    opt_tracking['base_learn_rate'] = 1.0e-2
-    opt_tracking['learn_rate_decay_step'] = 5000
+    opt_tracking['base_learn_rate'] = 1.0e-3
+    opt_tracking['learn_rate_decay_step'] = 1000
     opt_tracking['learn_rate_decay_rate'] = 0.96
     opt_tracking['pretrain_model_filename'] = "/ais/gobi3/u/mren/results/deep-tracker/detector-20160417231457/weights.h5"
     opt_tracking['is_pretrain'] = True
@@ -239,8 +234,16 @@ if __name__ == "__main__":
                 if num_obj < 1:
                     continue
 
+                keep_sampling = True
                 idx_obj = np.random.randint(num_obj)
                 idx_frame = np.random.randint(num_imgs - seq_length + 1)
+
+                while keep_sampling:                                        
+                    if gt_bbox[idx_obj, idx_frame, 4] == 1:
+                        keep_sampling = False
+                    else:
+                        idx_obj = np.random.randint(num_obj)
+                        idx_frame = np.random.randint(num_imgs - seq_length + 1)                        
 
                 current_seq = []
                 for ii in xrange(seq_length):
