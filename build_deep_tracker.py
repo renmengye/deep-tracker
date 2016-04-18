@@ -208,18 +208,21 @@ def build_tracking_model(opt, device='/cpu:0'):
             # extract global CNN feature map
             h_cnn_global = cnn_model(imgs[:, tt, :, :, :])
             cnn_global_feat_map = h_cnn_global[-1]
-            cnn_global_feat_map = tf.stop_gradient(cnn_global_feat_map) # fix CNN during training
+            # cnn_global_feat_map = tf.stop_gradient(cnn_global_feat_map) # fix CNN during training
             model['cnn_global_feat_map'] = cnn_global_feat_map
 
             # extract ROI CNN feature map 
             x1, y1, x2, y2 = tf.split(1, 4, predict_bbox[tt-1])                      
-            idx_map = get_idx_map(tf.shape(imgs[:, tt, :, :, :]))            
+            idx_map = get_idx_map(tf.pack([batch_size, height, width]))
             mask_map = get_filled_box_idx(idx_map, tf.concat(1, [y1, x1]), tf.concat(1, [y2, x2]))
-            ROI_img = imgs[:, tt, :, :, :] * mask_map
+            
+            ROI_img = []
+            for cc in xrange(num_channel):
+                ROI_img.append(imgs[:, tt, :, :, cc] * mask_map)
 
-            h_cnn_roi = cnn_model(ROI_img)
+            h_cnn_roi = cnn_model(tf.transpose(tf.pack(ROI_img), [1, 2, 3, 0]))
             cnn_roi_feat_map = h_cnn_roi[-1]
-            cnn_roi_feat_map = tf.stop_gradient(cnn_roi_feat_map)   # fix CNN during training
+            # cnn_roi_feat_map = tf.stop_gradient(cnn_roi_feat_map)   # fix CNN during training
             model['cnn_roi_feat_map'] = cnn_roi_feat_map
 
             # going through a RNN
@@ -234,15 +237,15 @@ def build_tracking_model(opt, device='/cpu:0'):
             predict_score[tt] = score_mlp(rnn_hidden_feat[tt])[0]
 
             IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
-        
-        model['IOU_score'] = IOU_score
-        model['predict_bbox'] = predict_bbox[:-1]
-        model['predict_score'] = predict_score[:-1]
+
+        model['IOU_score'] = tf.transpose(tf.pack(IOU_score), [1, 0, 2])
+        model['predict_bbox'] = tf.transpose(tf.pack(predict_bbox[:-1]), [1, 0, 2])
+        model['predict_score'] = tf.transpose(tf.pack(predict_score[:-1]), [1, 0, 2])
                 
         # IOU loss + cross-entropy loss
         batch_size_f = tf.to_float(batch_size)
         rnn_seq_len_f = tf.to_float(rnn_seq_len)
-        IOU_loss = tf.reduce_sum(gt_score * (1 - tf.concat(1, IOU_score))) / (batch_size_f * rnn_seq_len_f)
+        IOU_loss = tf.reduce_sum(gt_score * (- tf.concat(1, IOU_score))) / (batch_size_f * rnn_seq_len_f)
         cross_entropy = -tf.reduce_sum(gt_score * tf.log(tf.concat(1, predict_score[:-1])) + (1 - gt_score) * tf.log(1 - tf.concat(1, predict_score[:-1]))) / (batch_size_f * rnn_seq_len_f)
 
         model['IOU_loss'] = IOU_loss

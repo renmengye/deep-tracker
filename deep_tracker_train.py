@@ -39,14 +39,14 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col)
                     pred_bbox[idx][2] - pred_bbox[idx][0],
                     pred_bbox[idx][3] - pred_bbox[idx][1],
                     fill=False,
-                    color='b'))
+                    color='r'))
 
             axarr[ii, jj].add_patch(patches.Rectangle(
                     (gt_bbox[idx][0], gt_bbox[idx][1]),
                     gt_bbox[idx][2] - gt_bbox[idx][0],
                     gt_bbox[idx][3] - gt_bbox[idx][1],
                     fill=False,
-                    color='r'))
+                    color='b'))
 
             axarr[ii, jj].text(0, 0, ("%5.2f" % iou[idx]),
                color=(0, 0, 0), size=8)
@@ -55,18 +55,7 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col)
     plt.savefig(fname, dpi=80)
     plt.close('all')
 
-def next_batch(imgs, labels, scores, idx_sample, batch_size, num_train):
-    
-    if idx_sample + batch_size > num_train:
-        raise Exception('Incorrect index of sample')
-    
-    current_batch_img = imgs[idx_sample : idx_sample + batch_size]
-    current_batch_label = labels[idx_sample : idx_sample + batch_size]
-    current_batch_score = scores[idx_sample : idx_sample + batch_size]
-
-    return current_batch_img, current_batch_label, current_batch_score
-
-def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox):
+def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width):
 
     count_draw = 0
     idx_draw_frame = 0
@@ -74,14 +63,15 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox):
     draw_imgs = []
     draw_gt_box = []
 
-    while count_draw < batch_size:
+    while count_draw < seq_length:
         if draw_raw_gt_bbox[0, idx_draw_frame, 4] == 1:
             skip_empty = False
 
         if not skip_empty:
-            draw_imgs.append(cv2.resize(draw_raw_imgs[idx_draw_frame, :, :], (width, height), interpolation = cv2.INTER_CUBIC))
+            draw_imgs.append(cv2.resize(draw_raw_imgs[idx_draw_frame], (width, height), interpolation = cv2.INTER_CUBIC))
 
-            tmp_box = draw_raw_gt_bbox[0, idx_draw_frame, :4]
+            # draw 0-th object in the sequence
+            tmp_box = np.array(draw_raw_gt_bbox[0, idx_draw_frame, :4])
             tmp_box[0] = tmp_box[0] / draw_raw_imgs.shape[2] * width
             tmp_box[1] = tmp_box[1] / draw_raw_imgs.shape[1] * height
             tmp_box[2] = tmp_box[2] / draw_raw_imgs.shape[2] * width
@@ -94,22 +84,27 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox):
 
     return draw_imgs, draw_gt_box
 
-def draw_sequence(idx, draw_img_name, data, tracking_model, sess):
+def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, height, width):
     
     draw_data = data[idx]
     draw_raw_imgs = draw_data['images_0']
     draw_raw_gt_bbox = draw_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
 
-    draw_imgs, draw_gt_box = collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox)
+    draw_imgs, draw_gt_box = collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width)
 
-    feed_data = {tracking_model['imgs']: draw_imgs, 
-             tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
-             tracking_model['gt_bbox']: draw_gt_box,                                     
-             tracking_model['phase_train']: False}
+    feed_data = {tracking_model['imgs']: np.expand_dims(draw_imgs, 0), 
+                 tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0), 
+                 tracking_model['gt_bbox']: np.expand_dims(draw_gt_box, 0),                                     
+                 tracking_model['phase_train']: False}
 
     draw_pred_bbox, draw_IOU_score = sess.run([tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
 
-    plot_frame_with_bbox(draw_img_name, draw_imgs, draw_pred_bbox, draw_gt_box, draw_IOU_score, 8, 2)
+    draw_pred_bbox = np.squeeze(draw_pred_bbox)
+    draw_IOU_score = np.squeeze(draw_IOU_score)
+
+    num_col = 2
+    num_row = seq_length / num_col
+    plot_frame_with_bbox(draw_img_name, draw_imgs, draw_pred_bbox, draw_gt_box, draw_IOU_score, num_row, num_col)
 
 
 if __name__ == "__main__":
@@ -118,12 +113,12 @@ if __name__ == "__main__":
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
     device = '/gpu:2'
     
-    max_iter = 1000 
-    batch_size = 50     
+    max_iter = 100000 
+    batch_size = 40     
     display_iter = 10
-    draw_iter = 50
-    seq_length = 2     # sequence length for training
-    snapshot_iter = 1000
+    draw_iter = 10
+    seq_length = 30     # sequence length for training
+    snapshot_iter = 500
     height = 128
     width = 448
 
@@ -190,7 +185,7 @@ if __name__ == "__main__":
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver()
-    nodes_run = ['train_step', 'IOU_loss', 'CE_loss', 'predict_bbox', 'predict_score']
+    nodes_run = ['train_step', 'IOU_loss', 'IOU_score', 'CE_loss', 'predict_bbox', 'predict_score']
     node_list = [tracking_model[i] for i in nodes_run]
 
     # training 
@@ -200,7 +195,8 @@ if __name__ == "__main__":
         video_seq = []
         
         # read data
-        cdf_seq = np.zeros(num_seq)        
+        cdf_seq = np.zeros(num_seq)
+        total_count = 0     
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
             video_seq.append(seq_data)
 
@@ -209,20 +205,24 @@ if __name__ == "__main__":
             else:
                 cdf_seq[idx_seq] = cdf_seq[idx_seq-1] + seq_data['images_0'].shape[0]
 
-        cdf_seq /= np.sum(cdf_seq)
-        print cdf_seq
+            total_count += seq_data['images_0'].shape[0]
+
+        cdf_seq /= total_count
 
         # training loop
         while step < max_iter:
+            idx_sample = 0
             batch_img = []
             init_box = []
             batch_box = []
             batch_score = []
 
-            for ii in xrange(batch_size):
+            while idx_sample < batch_size:
                 # sample sequence based on the proportion of its length    
                 rand_val = np.random.rand()
-                seq_data = video_seq(np.logical_and(rand_val < cdf_seq, rand_val > np.concatenate(([0], cdf_seq[:-1]))))
+                idx_boolean = np.logical_and(rand_val < cdf_seq, rand_val > np.concatenate(([0], cdf_seq[:-1])))
+                idx_video = [i for i, elem in enumerate(idx_boolean) if elem]
+                seq_data = video_seq[idx_video[0]]
 
                 raw_imgs = seq_data['images_0']
                 gt_bbox = seq_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
@@ -233,19 +233,25 @@ if __name__ == "__main__":
                     continue
 
                 idx_obj = np.random.randint(num_obj)
-                idx_frame = np.random.randint(num_imgs - seq_length)
+                idx_frame = np.random.randint(num_imgs - seq_length + 1)
 
-                batch_img.append(cv2.resize(raw_imgs[idx_frame : idx_frame + seq_length], (width, height), interpolation = cv2.INTER_CUBIC))
+                current_seq = []
+                for ii in xrange(seq_length):
+                    current_seq.append(cv2.resize(raw_imgs[idx_frame + ii], (width, height), interpolation = cv2.INTER_CUBIC))
 
-                tmp_box = gt_bbox[idx_obj, idx_frame : idx_frame + seq_length, :4]
-                tmp_box[0] = tmp_box[0] / raw_imgs.shape[2] * width
-                tmp_box[1] = tmp_box[1] / raw_imgs.shape[1] * height
-                tmp_box[2] = tmp_box[2] / raw_imgs.shape[2] * width
-                tmp_box[3] = tmp_box[3] / raw_imgs.shape[1] * height
+                batch_img.append(current_seq)
+
+                tmp_box = np.array(gt_bbox[idx_obj, idx_frame : idx_frame + seq_length, :4])
+                tmp_box[:, 0] = tmp_box[:, 0] / raw_imgs.shape[2] * width
+                tmp_box[:, 1] = tmp_box[:, 1] / raw_imgs.shape[1] * height
+                tmp_box[:, 2] = tmp_box[:, 2] / raw_imgs.shape[2] * width
+                tmp_box[:, 3] = tmp_box[:, 3] / raw_imgs.shape[1] * height
                     
                 batch_box.append(tmp_box)
-                init_box.append(gt_bbox[idx_obj, idx_frame, :4])
+                init_box.append(tmp_box[0, :4])
                 batch_score.append(gt_bbox[idx_obj, idx_frame : idx_frame + seq_length, 4])
+
+                idx_sample += 1
 
             # training for current batch            
             feed_data = {tracking_model['imgs']: batch_img,
@@ -273,11 +279,11 @@ if __name__ == "__main__":
 
             # draw bbox on selected data
             if (step+1) % draw_iter == 0:
-                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess)
-                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess)
-                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess)
-                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess)
-                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess)
+                draw_sequence(0, draw_img_name_0, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(3, draw_img_name_1, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(11, draw_img_name_2, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(14, draw_img_name_3, video_seq, tracking_model, sess, seq_length, height, width)
+                draw_sequence(20, draw_img_name_4, video_seq, tracking_model, sess, seq_length, height, width)
 
             step += 1
 
