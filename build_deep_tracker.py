@@ -92,10 +92,13 @@ def compute_IOU(bboxA, bboxB):
     x2_min = tf.minimum(x2A, x2B)
     y2_min = tf.minimum(y2A, y2B)
 
-    overlap_flag = tf.logical_and(
-        tf.less(x1_max, x2_min), tf.less(y1_max, y2_min))
-    overlap_area = tf.mul(tf.to_float(overlap_flag),
-                          tf.mul(x2_min - x1_max, y2_min - y1_max))
+    # overlap_flag = tf.logical_and( tf.less(x1_max, x2_min), tf.less(y1_max, y2_min))
+
+    overlap_flag = tf.to_float(tf.less(x1_max, x2_min)) * \
+        tf.to_float(tf.less(y1_max, y2_min))
+
+    overlap_area = tf.mul(overlap_flag, tf.mul(
+        x2_min - x1_max, y2_min - y1_max))
 
     # compute union
     areaA = tf.mul(x2A - x1A, y2A - y1A)
@@ -184,6 +187,7 @@ def f_iou(a, b, timespan=None, pairwise=False):
         return tf.concat(1, y_list)
     else:
         return f_inter(a, b) / f_union(a, b)
+
 
 def f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
     """Computes intersection area with boxes.
@@ -385,9 +389,9 @@ def build_tracking_model(opt, device='/cpu:0'):
         #                       :, :, 2: 3], gt_bbox[:, :, 0: 1], gt_bbox[:, :, 2: 3])
 
         predict_bbox = tf.transpose(tf.pack(predict_bbox[:-1]), [1, 0, 2])
-        
+
         model['IOU_score'] = tf.transpose(tf.pack(IOU_score), [1, 0, 2])
-        
+
         # model['IOU_score'] = IOU_score
         model['predict_bbox'] = predict_bbox
         model['predict_score'] = tf.transpose(
@@ -397,7 +401,7 @@ def build_tracking_model(opt, device='/cpu:0'):
         batch_size_f = tf.to_float(batch_size)
         rnn_seq_len_f = tf.to_float(rnn_seq_len)
         # IOU_loss = tf.reduce_sum(gt_score * (- tf.concat(1, IOU_score))) / (batch_size_f * rnn_seq_len_f)
-        
+
         valid_seq_length = tf.reduce_sum(gt_score, [1])
         valid_seq_length = tf.maximum(1.0, valid_seq_length)
         IOU_loss = gt_score * (- tf.concat(1, IOU_score))

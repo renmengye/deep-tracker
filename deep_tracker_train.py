@@ -224,7 +224,9 @@ if __name__ == "__main__":
                 rand_val = np.random.rand()
                 idx_boolean = np.logical_and(rand_val < cdf_seq, rand_val > np.concatenate(([0], cdf_seq[:-1])))
                 idx_video = [i for i, elem in enumerate(idx_boolean) if elem]
-                seq_data = video_seq[idx_video[0]]
+                
+                # seq_data = video_seq[idx_video[0]]
+                seq_data = video_seq[0]
 
                 raw_imgs = seq_data['images_0']
                 gt_bbox = seq_data['gt_bbox']    # gt_bbox = [left top right bottom flag]
@@ -235,14 +237,15 @@ if __name__ == "__main__":
                     continue
 
                 keep_sampling = True
-                idx_obj = np.random.randint(num_obj)
+                idx_obj = 0
+                # idx_obj = np.random.randint(num_obj)
                 idx_frame = np.random.randint(num_imgs - seq_length + 1)
 
                 while keep_sampling:                                        
                     if gt_bbox[idx_obj, idx_frame, 4] == 1:
                         keep_sampling = False
                     else:
-                        idx_obj = np.random.randint(num_obj)
+                        # idx_obj = np.random.randint(num_obj)
                         idx_frame = np.random.randint(num_imgs - seq_length + 1)                        
 
                 current_seq = []
