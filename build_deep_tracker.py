@@ -129,7 +129,7 @@ def transform_box(bbox, height, width):
     x2 = x + w / 2
     y2 = y + h / 2
 
-    bbox_out = tf.round(tf.concat(1, [x1, y1, x2, y2]))
+    bbox_out = tf.concat(1, [x1, y1, x2, y2])
 
     return bbox_out
 
@@ -375,18 +375,20 @@ def build_tracking_model(opt, device='/cpu:0'):
             predict_bbox[tt] = transform_box(raw_predict_bbox, height, width)
             predict_score[tt] = score_mlp(rnn_hidden_feat[tt])[0]
 
-            # IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
+            IOU_score[tt] = compute_IOU(predict_bbox[tt], gt_bbox[:, tt, :])
 
-        # [B, T, 4]
-        predict_bbox_reshape = tf.concat(
-            1, [tf.expand_dims(tmp, 1) for tmp in predict_bbox[:-1]])
-        # [B, T]
-        IOU_score = f_iou_box(predict_bbox_reshape[:, :, 0: 1], predict_bbox_reshape[
-                              :, :, 2: 3], gt_bbox[:, :, 0: 1], gt_bbox[:, :, 2: 3])
+        # # [B, T, 4]
+        # predict_bbox_reshape = tf.concat(
+        #     1, [tf.expand_dims(tmp, 1) for tmp in predict_bbox[:-1]])
+        # # [B, T]
+        # IOU_score = f_iou_box(predict_bbox_reshape[:, :, 0: 1], predict_bbox_reshape[
+        #                       :, :, 2: 3], gt_bbox[:, :, 0: 1], gt_bbox[:, :, 2: 3])
 
         predict_bbox = tf.transpose(tf.pack(predict_bbox[:-1]), [1, 0, 2])
-        # model['IOU_score'] = tf.transpose(tf.pack(IOU_score), [1, 0, 2])
-        model['IOU_score'] = IOU_score
+        
+        model['IOU_score'] = tf.transpose(tf.pack(IOU_score), [1, 0, 2])
+        
+        # model['IOU_score'] = IOU_score
         model['predict_bbox'] = predict_bbox
         model['predict_score'] = tf.transpose(
             tf.pack(predict_score[:-1]), [1, 0, 2])
