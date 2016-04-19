@@ -116,7 +116,7 @@ if __name__ == "__main__":
     max_iter = 100000 
     batch_size = 20    
     display_iter = 10
-    draw_iter = 10
+    draw_iter = 50
     seq_length = 30     # sequence length for training
     snapshot_iter = 500
     height = 128
