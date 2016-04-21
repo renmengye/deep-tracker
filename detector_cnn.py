@@ -51,7 +51,8 @@ def get_model(opt, device='/cpu:0'):
         cnn_nlayers = len(cnn_filter_size)
         cnn_pool = cnn_pool + [1]
         cnn_use_bn = [True] * cnn_nlayers + [False]
-        cnn_act = [tf.nn.relu] * cnn_nlayers + [tf.sigmoid]
+        # cnn_act = [tf.nn.relu] * cnn_nlayers + [tf.sigmoid]
+        cnn_act = [tf.nn.relu] * cnn_nlayers + [None]
 
         h5f = h5py.File(trained_model, 'r')
         cnn_init_w = [{'w': h5f['cnn_w_{}'.format(ii)][:],

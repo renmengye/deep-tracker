@@ -28,7 +28,7 @@ def get_dataset(folder, split):
 
     """
     # 'train' => 'training', 'test' => 'testing'
-    split += 'ing'
+    split_ing = split + 'ing'
     h5_fname = os.path.join(folder, split, 'dataset-*')
     try:
         h5_f = sh.ShardedFile.from_pattern_read(h5_fname)
@@ -38,21 +38,26 @@ def get_dataset(folder, split):
     if h5_f:
         return h5_f
 
-    left_folder = os.path.join(folder, split, 'image_02')
-    right_folder = os.path.join(folder, split, 'image_03')
-    if split == 'training':
-        label_folder = os.path.join(folder, split, 'label_02')
+    left_folder = os.path.join(folder, split_ing, 'image_02')
+    right_folder = os.path.join(folder, split_ing, 'image_03')
+    if split == 'train':
+        label_folder = os.path.join(folder, split_ing, 'label_02')
+        seqs = range(13)
+    elif split == 'valid':
+        seqs = range(13, 21)
+    elif split == 'test':
+        seqs = range(100)
 
     # List the sequences
     seq_list = []
     for seq_num in os.listdir(left_folder):
-        if seq_num.startswith('0'):
+        if seq_num.startswith('0') and int(seq_num) in seqs:
             seq_list.append(seq_num)
             pass
         pass
 
     # Prepare output file
-    fname_out = os.path.join(folder, split, 'dataset')
+    fname_out = os.path.join(folder, split_ing, 'dataset')
     f_out = sh.ShardedFile(fname_out, num_shards=len(seq_list))
     target_types = set(['Van', 'Car', 'Truck'])
 
@@ -61,7 +66,7 @@ def get_dataset(folder, split):
 
             seq_data = {}
 
-            if split == 'training':
+            if split == 'train' or split == 'valid:
                 label_fname = os.path.join(label_folder, seq_num + '.txt')
                 obj_data = {}
                 idx_map = []
@@ -126,7 +131,7 @@ def get_dataset(folder, split):
                 else:
                     continue
                 seq_folder = os.path.join(
-                    folder, split, camera_folder, seq_num)
+                    folder, split_ing, camera_folder, seq_num)
                 image_list = os.listdir(seq_folder)
                 im_height = None
                 im_width = None
