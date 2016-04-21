@@ -29,7 +29,7 @@ def get_dataset(folder, split):
     """
     # 'train' => 'training', 'test' => 'testing'
     split_ing = split + 'ing'
-    h5_fname = os.path.join(folder, split, 'dataset-*')
+    h5_fname = os.path.join(folder, split_ing, 'dataset-*')
     try:
         h5_f = sh.ShardedFile.from_pattern_read(h5_fname)
     except:
@@ -66,7 +66,7 @@ def get_dataset(folder, split):
 
             seq_data = {}
 
-            if split == 'train' or split == 'valid':
+            if split == 'train':
                 label_fname = os.path.join(label_folder, seq_num + '.txt')
                 obj_data = {}
                 idx_map = []
