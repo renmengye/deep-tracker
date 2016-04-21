@@ -66,7 +66,7 @@ def get_dataset(folder, split):
 
             seq_data = {}
 
-            if split == 'train' or split == 'valid:
+            if split == 'train' or split == 'valid':
                 label_fname = os.path.join(label_folder, seq_num + '.txt')
                 obj_data = {}
                 idx_map = []
