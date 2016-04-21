@@ -26,7 +26,7 @@ from build_deep_tracker import compute_IOU
 from kitti import get_dataset
 
 
-def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col):
+def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, predict_score, num_row, num_col):
     f, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
 
     for ii in xrange(num_row):
@@ -35,12 +35,13 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col)
             idx = ii * num_col + jj
             axarr[ii, jj].imshow(data[idx], cmap=cm.Greys_r)
 
-            axarr[ii, jj].add_patch(patches.Rectangle(
-                (pred_bbox[idx][0], pred_bbox[idx][1]),
-                pred_bbox[idx][2] - pred_bbox[idx][0],
-                pred_bbox[idx][3] - pred_bbox[idx][1],
-                fill=False,
-                color='r'))
+            if predict_score[idx] > 0.5:
+                axarr[ii, jj].add_patch(patches.Rectangle(
+                    (pred_bbox[idx][0], pred_bbox[idx][1]),
+                    pred_bbox[idx][2] - pred_bbox[idx][0],
+                    pred_bbox[idx][3] - pred_bbox[idx][1],
+                    fill=False,
+                    color='r'))
 
             axarr[ii, jj].add_patch(patches.Rectangle(
                 (gt_bbox[idx][0], gt_bbox[idx][1]),
@@ -104,21 +105,20 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
                  tracking_model['anneal_threshold']: [1.0],
                  tracking_model['phase_train']: False}
 
-    draw_pred_bbox, draw_IOU_score = sess.run(
-        [tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
-
+    draw_pred_bbox, draw_IOU_score, predict_score = sess.run(
+        [tracking_model['predict_bbox'], tracking_model['IOU_score'], tracking_model['predict_score']], feed_dict=feed_data)
+    
     draw_pred_bbox = np.squeeze(draw_pred_bbox)
     draw_IOU_score = np.squeeze(draw_IOU_score)
+    predict_score = np.squeeze(predict_score)
 
     num_col = 2
     num_row = seq_length / num_col
     plot_frame_with_bbox(draw_img_name, draw_imgs[1:], draw_pred_bbox, draw_gt_box[
-                         1:], draw_IOU_score, num_row, num_col)
+                         1:], draw_IOU_score, predict_score, num_row, num_col)
 
 
 if __name__ == "__main__":
-
-    # folder = '/ais/gobi4/rjliao/Projects/CSC2541/data/TUD/cvpr10_tud_stadtmitte'
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
     device = '/gpu:2'
 
@@ -131,6 +131,8 @@ if __name__ == "__main__":
     anneal_iter = 1000
     height = 128
     width = 448
+    img_channel = 3
+    resume_training = True
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-002'
@@ -177,8 +179,7 @@ if __name__ == "__main__":
         log_register(draw_img_name_4, 'image', 'Tracking Bounding Box 5')
 
     # read data
-    # dataset = get_dataset(folder)
-    dataset = get_dataset(folder, 'train')
+    train_data = get_dataset(folder, 'train')
 
     # setting model
     opt_tracking = {}
@@ -186,7 +187,7 @@ if __name__ == "__main__":
     opt_tracking['cnn_filter_size'] = [3, 3, 3, 3, 3, 3, 3, 3]
     opt_tracking['cnn_num_filter'] = [16, 16, 32, 32, 64, 64, 96, 96]
     opt_tracking['cnn_pool_size'] = [1, 2, 1, 2, 1, 2, 1, 2]
-    opt_tracking['img_channel'] = 3
+    opt_tracking['img_channel'] = img_channel
     opt_tracking['use_batch_norm'] = True
     opt_tracking['img_height'] = height
     opt_tracking['img_width'] = width
@@ -204,12 +205,16 @@ if __name__ == "__main__":
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver()
+
+    if resume_training:
+        saver.restore(sess, "my_deep_tracker.ckpt")
+
     nodes_run = ['train_step', 'IOU_loss', 'L2_loss',
                  'IOU_score', 'CE_loss', 'predict_bbox', 'predict_score']
     node_list = [tracking_model[i] for i in nodes_run]
 
     # training
-    with sh.ShardedFileReader(dataset) as reader:
+    with sh.ShardedFileReader(train_data) as reader:
         step = 0
         num_seq = len(reader)
         video_seq = []
@@ -234,10 +239,11 @@ if __name__ == "__main__":
         while step < max_iter:
             idx_sample = 0
             anneal_prob = 0
-            batch_img = []
-            init_box = []
-            batch_box = []
-            batch_score = []
+            batch_img = np.zeros(
+                [batch_size, seq_length + 1, height, width, img_channel])
+            init_box = np.zeros([batch_size, 4])
+            batch_box = np.zeros([batch_size, seq_length + 1, 4])
+            batch_score = np.zeros([batch_size, seq_length + 1])
 
             while idx_sample < batch_size:
                 # sample sequence based on the proportion of its length
@@ -259,8 +265,6 @@ if __name__ == "__main__":
                     continue
 
                 keep_sampling = True
-                # idx_obj = 0
-                # idx_frame = 0
                 idx_obj = np.random.randint(num_obj)
                 idx_frame = np.random.randint(num_imgs - seq_length)
 
@@ -268,16 +272,12 @@ if __name__ == "__main__":
                     if gt_bbox[idx_obj, idx_frame, 4] == 1:
                         keep_sampling = False
                     else:
-                        # idx_frame += 1
                         idx_obj = np.random.randint(num_obj)
                         idx_frame = np.random.randint(num_imgs - seq_length)
 
-                current_seq = []
                 for ii in xrange(seq_length + 1):
-                    current_seq.append(cv2.resize(
-                        raw_imgs[idx_frame + ii], (width, height), interpolation=cv2.INTER_CUBIC))
-
-                batch_img.append(current_seq)
+                    batch_img[idx_sample, ii] = cv2.resize(
+                        raw_imgs[idx_frame + ii], (width, height), interpolation=cv2.INTER_CUBIC)
 
                 tmp_box = np.array(
                     gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4])
@@ -286,10 +286,10 @@ if __name__ == "__main__":
                 tmp_box[:, 2] = tmp_box[:, 2] / raw_imgs.shape[2] * width
                 tmp_box[:, 3] = tmp_box[:, 3] / raw_imgs.shape[1] * height
 
-                batch_box.append(tmp_box)
-                init_box.append(tmp_box[0, :4])
-                batch_score.append(
-                    gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, 4])
+                batch_box[idx_sample] = tmp_box
+                init_box[idx_sample] = tmp_box[0, :]
+                batch_score[idx_sample] = gt_bbox[
+                    idx_obj, idx_frame: idx_frame + seq_length + 1, 4]
 
                 idx_sample += 1
 
@@ -316,7 +316,7 @@ if __name__ == "__main__":
                 print "Train Step = %06d || IOU Loss = %e || CE loss = %e" % (step + 1, results_dict['IOU_loss'], results_dict['CE_loss'])
 
             # save model
-            if (step + 1) % anneal_iter == 0:                
+            if (step + 1) % anneal_iter == 0:
                 anneal_prob += 0.1
                 anneal_prob = min(anneal_prob, 1.0)
 
@@ -328,13 +328,13 @@ if __name__ == "__main__":
             if (step + 1) % draw_iter == 0:
                 draw_sequence(0, draw_img_name_0, video_seq,
                               tracking_model, sess, seq_length, height, width)
-                draw_sequence(3, draw_img_name_1, video_seq,
+                draw_sequence(1, draw_img_name_1, video_seq,
                               tracking_model, sess, seq_length, height, width)
-                draw_sequence(11, draw_img_name_2, video_seq,
+                draw_sequence(2, draw_img_name_2, video_seq,
                               tracking_model, sess, seq_length, height, width)
-                draw_sequence(14, draw_img_name_3, video_seq,
+                draw_sequence(3, draw_img_name_3, video_seq,
                               tracking_model, sess, seq_length, height, width)
-                draw_sequence(20, draw_img_name_4, video_seq,
+                draw_sequence(4, draw_img_name_4, video_seq,
                               tracking_model, sess, seq_length, height, width)
 
             step += 1

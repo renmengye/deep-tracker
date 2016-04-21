@@ -117,7 +117,7 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
 if __name__ == "__main__":
     
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
-    device = '/gpu:2'
+    device = '/gpu:3'
 
     max_iter = 100000
     batch_size = 2
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     img_channel = 3
 
     # logger for saving intermediate output
-    model_id = 'deep-tracker-002'
+    model_id = 'deep-tracker-003'
     logs_folder = '/u/rjliao/public_html/results'
     logs_folder = os.path.join(logs_folder, model_id)
 
@@ -254,7 +254,6 @@ if __name__ == "__main__":
                 idx_video = [i for i, elem in enumerate(idx_boolean) if elem]
 
                 seq_data = video_seq[idx_video[0]]
-                # seq_data = video_seq[0]
 
                 raw_imgs = seq_data['images_0']
                 # gt_bbox = [left top right bottom flag]
@@ -276,10 +275,15 @@ if __name__ == "__main__":
                         idx_obj = np.random.randint(num_obj)
                         idx_frame = np.random.randint(num_imgs - seq_length)
                 
-                tmp_bbox = gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4]
+                tmp_bbox = np.array(gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4])
+                tmp_bbox[:, 0] = (tmp_bbox[:, 0] / raw_imgs.shape[2] * width).astype(int)
+                tmp_bbox[:, 1] = (tmp_bbox[:, 1] / raw_imgs.shape[1] * height).astype(int)
+                tmp_bbox[:, 2] = (tmp_bbox[:, 2] / raw_imgs.shape[2] * width).astype(int)
+                tmp_bbox[:, 3] = (tmp_bbox[:, 3] / raw_imgs.shape[1] * height).astype(int)
 
                 for ii in xrange(seq_length + 1):
                     batch_img[idx_sample, ii] = cv2.resize(raw_imgs[idx_frame + ii], (width, height), interpolation=cv2.INTER_CUBIC)
+
                     gt_raw_heat_map[idx_sample, ii, tmp_bbox[ii, 1] : tmp_bbox[ii, 3], tmp_bbox[ii, 0] : tmp_bbox[ii, 2]] = 1
                     gt_heat_map[idx_sample, ii] = cv2.resize(gt_raw_heat_map, (feat_map_width, feat_map_height), interpolation=cv2.INTER_NEAREST)
 

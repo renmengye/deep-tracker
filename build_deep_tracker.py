@@ -431,7 +431,8 @@ def build_tracking_model(opt, device='/cpu:0'):
             raw_predict_bbox = bbox_mlp(rnn_hidden_feat[tt])[0]
             predict_bbox[
                 tt + 1] = transform_box(raw_predict_bbox, height, width)
-            predict_score[tt + 1] = score_mlp(rnn_hidden_feat[tt])[0]
+            predict_score[
+                tt + 1] = score_mlp(rnn_hidden_feat[tt])[-1]
 
             # compute IOU
             IOU_score[
@@ -450,8 +451,7 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         # model['IOU_score'] = IOU_score
         model['predict_bbox'] = predict_bbox
-        model['predict_score'] = tf.transpose(
-            tf.pack(predict_score[1:]), [1, 0, 2])
+        model['predict_score'] = tf.transpose(tf.pack(predict_score[1:]))
 
         # compute IOU loss
         batch_size_f = tf.to_float(batch_size)
