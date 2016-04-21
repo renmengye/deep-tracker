@@ -614,7 +614,7 @@ def conv_lstm(inp_depth, hid_depth, filter_size, wd=None, scope='conv_lstm'):
             u = tf.tanh(conv2d(inp, w_xu) + conv2d(h, w_hu) + b_u)
             c = g_f * c + g_i * u
             h = g_o * tf.tanh(c)
-            state = tf.concat(3, [c, f])
+            state = tf.concat(3, [c, h])
 
         return state
 
