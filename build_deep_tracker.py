@@ -8,7 +8,7 @@ import numpy as np
 
 from grad_clip_optim import GradientClipOptimizer
 
-
+# try to push in github
 def get_device_fn(device):
     """Choose device for different ops."""
     OPS_ON_CPU = set(['ResizeBilinear', 'Print', 'ResizeBilinearGrad', 'Mod', 'CumMin',
