@@ -166,110 +166,6 @@ def inverse_transform_box(bbox, height, width):
 
     return bbox_out
 
-
-def _get_reduction_indices(a):
-    """Gets the list of axes to sum over."""
-    dim = tf.shape(tf.shape(a))
-
-    return tf.concat(0, [dim - 2, dim - 1])
-
-
-def f_inter(a, b):
-    """Computes intersection."""
-    reduction_indices = _get_reduction_indices(a)
-    return tf.reduce_sum(a * b, reduction_indices=reduction_indices)
-
-
-def f_union(a, b, eps=1e-5):
-    """Computes union."""
-    reduction_indices = _get_reduction_indices(a)
-    return tf.reduce_sum(a + b - (a * b) + eps,
-                         reduction_indices=reduction_indices)
-
-
-def f_iou(a, b, timespan=None, pairwise=False):
-    """
-    Computes IOU score.
-    Args:
-        a: [B, N, H, W], or [N, H, W], or [H, W]
-        b: [B, N, H, W], or [N, H, W], or [H, W]
-           in pairwise mode, the second dimension can be different,
-           e.g. [B, M, H, W], or [M, H, W], or [H, W]
-        pairwise: whether the inputs are already aligned, outputs [B, N] or
-                  the inputs are orderless, outputs [B, N, M].
-    """
-
-    if pairwise:
-        # N * [B, 1, M]
-        y_list = [None] * timespan
-        # [B, N, H, W] => [B, N, 1, H, W]
-        a = tf.expand_dims(a, 2)
-        # [B, N, 1, H, W] => N * [B, 1, 1, H, W]
-        a_list = tf.split(1, timespan, a)
-        # [B, M, H, W] => [B, 1, M, H, W]
-        b = tf.expand_dims(b, 1)
-
-        for ii in xrange(timespan):
-            # [B, 1, M]
-            y_list[ii] = f_inter(a_list[ii], b) / f_union(a_list[ii], b)
-
-        # N * [B, 1, M] => [B, N, M]
-        return tf.concat(1, y_list)
-    else:
-        return f_inter(a, b) / f_union(a, b)
-
-
-def f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
-    """Computes intersection area with boxes.
-    Args:
-        top_left_a: [B, T, 2] or [B, 2]
-        bot_right_a: [B, T, 2] or [B, 2]
-        top_left_b: [B, T, 2] or [B, 2]
-        bot_right_b: [B, T, 2] or [B, 2]
-    Returns:
-        area: [B, T]
-    """
-    top_left_max = tf.maximum(top_left_a, top_left_b)
-    bot_right_min = tf.minimum(bot_right_a, bot_right_b)
-    ndims = tf.shape(tf.shape(top_left_a))
-
-    # Check if the resulting box is valid.
-    overlap = tf.to_float(top_left_max < bot_right_min)
-    overlap = tf.reduce_prod(overlap, ndims - 1)
-    area = tf.reduce_prod(bot_right_min - top_left_max, ndims - 1)
-    area = overlap * tf.abs(area)
-
-    return area
-
-
-def f_iou_box(top_left_a, bot_right_a, top_left_b, bot_right_b):
-    """Computes IoU of boxes.
-    Args:
-        top_left_a: [B, T, 2] or [B, 2]
-        bot_right_a: [B, T, 2] or [B, 2]
-        top_left_b: [B, T, 2] or [B, 2]
-        bot_right_b: [B, T, 2] or [B, 2]
-    Returns:
-        iou: [B, T]
-    """
-    inter_area = f_inter_box(top_left_a, bot_right_a, top_left_b, bot_right_b)
-    inter_area = tf.maximum(inter_area, 1e-6)
-    ndims = tf.shape(tf.shape(top_left_a))
-    # area_a = tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
-    # area_b = tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
-    check_a = tf.reduce_prod(tf.to_float(top_left_a < bot_right_a), ndims - 1)
-    area_a = check_a * tf.reduce_prod(bot_right_a - top_left_a, ndims - 1)
-    check_b = tf.reduce_prod(tf.to_float(top_left_b < bot_right_b), ndims - 1)
-    area_b = check_b * tf.reduce_prod(bot_right_b - top_left_b, ndims - 1)
-    union_area = (area_a + area_b - inter_area + 1e-5)
-    union_area = tf.maximum(union_area, 1e-5)
-    iou = inter_area / union_area
-    iou = tf.maximum(iou, 1e-5)
-    iou = tf.minimum(iou, 1.0)
-
-    return iou
-
-
 def build_tracking_model(opt, device='/cpu:0'):
     """
     Given the T+1 sequence of input, return T sequence of output.
@@ -468,24 +364,24 @@ def build_tracking_model(opt, device='/cpu:0'):
         IOU_loss = tf.reduce_sum(IOU_loss) / batch_size_f
 
         # compute L2 loss
-        diff_bbox = gt_bbox[:, 1:, :] - predict_bbox
-        diff_x1 = diff_bbox[:, :, 0] / width
-        diff_y1 = diff_bbox[:, :, 1] / height
-        diff_x2 = diff_bbox[:, :, 2] / width
-        diff_y2 = diff_bbox[:, :, 3] / height
-        diff_bbox = tf.transpose(
-            tf.pack([diff_x1, diff_y1, diff_x2, diff_y2]), [1, 2, 0])
+        # diff_bbox = gt_bbox[:, 1:, :] - predict_bbox
+        # diff_x1 = diff_bbox[:, :, 0] / width
+        # diff_y1 = diff_bbox[:, :, 1] / height
+        # diff_x2 = diff_bbox[:, :, 2] / width
+        # diff_y2 = diff_bbox[:, :, 3] / height
+        # diff_bbox = tf.transpose(
+        #     tf.pack([diff_x1, diff_y1, diff_x2, diff_y2]), [1, 2, 0])
 
-        L2_loss = tf.reduce_sum(diff_bbox * diff_bbox, [1, 2]) / 4
-        L2_loss /= valid_seq_length
-        L2_loss = tf.reduce_sum(L2_loss) / batch_size_f
+        # L2_loss = tf.reduce_sum(diff_bbox * diff_bbox, [1, 2]) / 4
+        # L2_loss /= valid_seq_length
+        # L2_loss = tf.reduce_sum(L2_loss) / batch_size_f
 
         # cross-entropy loss
         cross_entropy = -tf.reduce_sum(gt_score[:, 1:] * tf.log(tf.concat(1, predict_score[1:])) + (
             1 - gt_score[:, 1:]) * tf.log(1 - tf.concat(1, predict_score[1:]))) / (batch_size_f * rnn_seq_len_f)
 
         model['IOU_loss'] = IOU_loss
-        model['L2_loss'] = L2_loss
+        # model['L2_loss'] = L2_loss
         model['CE_loss'] = cross_entropy
 
         global_step = tf.Variable(0.0)

@@ -178,8 +178,7 @@ if __name__ == "__main__":
 
     # read data
     train_data = get_dataset(folder, 'train')
-    # valid_data = get_dataset(folder, 'valid')
-
+    
     # setting model
     opt_tracking = {}
     
@@ -216,8 +215,14 @@ if __name__ == "__main__":
     nodes_run = ['train_step', 'IOU_loss', 'predict_heat_map']
     node_list = [tracking_model[i] for i in nodes_run]
 
-    # training
+    # split data for training and validation
     with sh.ShardedFileReader(train_data) as reader:
+
+        
+
+
+
+
         step = 0
         num_seq = len(reader)
         video_seq = []
