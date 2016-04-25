@@ -141,8 +141,8 @@ if __name__ == "__main__":
                     idx_obj, idx_frame: idx_frame + seq_length + 1, 4]
 
                 if ii == 0:
-                    init_rnn_state = np.concatenate(1, [dt.inverse_transform_box(
-                        init_box, height, width), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])])
+                    init_rnn_state = np.concatenate([dt.inverse_transform_box(
+                        init_box, height, width), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])], 1)
                 else:
                     init_rnn_state = last_rnn_state
 
@@ -172,8 +172,8 @@ if __name__ == "__main__":
                 idx_frame += (seq_length + 1)
 
             # print image
-            pred_bbox = np.concatenate(0, pred_bbox)
-            pred_score = np.concatenate(0, pred_score)
+            pred_bbox = np.concatenate(pred_bbox)
+            pred_score = np.concatenate(pred_score)
 
             plot_batch_frame_with_bbox(("valid_seq_%03d_obj_%03d" % (idx_seq, idx_obj)),
                                        raw_imgs[start_idx_frame:], pred_bbox, gt_bbox[start_idx_frame:], pred_score)
