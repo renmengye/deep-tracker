@@ -41,10 +41,10 @@ if __name__ == "__main__":
     valid_video_seq = []
     num_valid_seq = 0
     train_data_full = get_dataset(folder, 'train')
-    
-    with sh.ShardedFileReader(train_data_full) as reader:    
+
+    with sh.ShardedFileReader(train_data_full) as reader:
         num_seq = len(reader)
-        
+
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
             if idx_seq >= num_train_seq:
                 if seq_data['gt_bbox'].shape[0] > 0:
@@ -58,8 +58,8 @@ if __name__ == "__main__":
     # opt_tracking['cnn_num_filter'] = [16, 16, 32, 32, 64, 64, 96, 96]
     # opt_tracking['cnn_pool_size'] = [1, 2, 1, 2, 1, 2, 1, 2]
 
-    opt_tracking['cnn_filter_size'] = [3,3,3,3,3,3]
-    opt_tracking['cnn_num_filter'] = [8,8,16,16,32,32]
+    opt_tracking['cnn_filter_size'] = [3, 3, 3, 3, 3, 3]
+    opt_tracking['cnn_num_filter'] = [8, 8, 16, 16, 32, 32]
     opt_tracking['cnn_pool_size'] = [1, 2, 1, 2, 1, 2]
 
     opt_tracking['img_channel'] = img_channel
@@ -72,7 +72,8 @@ if __name__ == "__main__":
     opt_tracking['learn_rate_decay_step'] = 1000
     opt_tracking['learn_rate_decay_rate'] = 0.96
     # opt_tracking['pretrain_model_filename'] = "/ais/gobi3/u/mren/results/deep-tracker/detector-20160417231457/weights.h5"
-    opt_tracking['pretrain_model_filename'] = "/ais/gobi3/u/mren/results/img-count/fg_segm-20160419004323/weights.h5"
+    opt_tracking[
+        'pretrain_model_filename'] = "/ais/gobi3/u/mren/results/img-count/fg_segm-20160419004323/weights.h5"
     opt_tracking['is_pretrain'] = True
 
     tracking_model = dt.build_tracking_model(opt_tracking, device)
@@ -81,14 +82,17 @@ if __name__ == "__main__":
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver()
 
-    saver.restore(sess, "/ais/gobi4/rjliao/Projects/Kitti/tracking_models/deep_tracker_0018000.ckpt")
+    saver.restore(
+        sess, "/ais/gobi4/rjliao/Projects/Kitti/tracking_models/deep_tracker_0018000.ckpt")
 
-    nodes_run = ['IOU_score', 'predict_bbox', 'predict_score', 'final_rnn_state']
+    nodes_run = ['IOU_score', 'predict_bbox',
+                 'predict_score', 'final_rnn_state']
     node_list = [tracking_model[i] for i in nodes_run]
-        
+
     # testing loop
-    for seq_data in valid_video_seq:
-        batch_img = np.zeros([batch_size, seq_length + 1, height, width, img_channel])
+    for idx_seq, seq_data in enumerate(valid_video_seq):
+        batch_img = np.zeros(
+            [batch_size, seq_length + 1, height, width, img_channel])
         init_box = np.zeros([batch_size, 4])
         batch_box = np.zeros([batch_size, seq_length + 1, 4])
         batch_score = np.zeros([batch_size, seq_length + 1])
@@ -96,29 +100,36 @@ if __name__ == "__main__":
         raw_imgs = seq_data['images_0']
         gt_bbox = seq_data['gt_bbox']
         num_obj = gt_bbox.shape[0]
-        num_frames = raw_imgs.shape[0]  
+        num_frames = raw_imgs.shape[0]
 
         for idx_obj in xrange(num_obj):
-            start_frame_idx = 0
+            start_idx_frame = 0
             last_rnn_state = []
+            pred_bbox = []
+            pred_score = []
+            IOU_score = []
 
             # find the first frame
             for ii in xrange(num_frames):
                 if gt_bbox[idx_obj, ii, 4] == 1:
-                    start_frame_idx = ii
+                    start_idx_frame = ii
                     break
 
-            num_test_pass = ceil((num_frames - start_frame_idx) / seq_length)
+            idx_frame = start_idx_frame
+            num_test_pass = int(
+                np.ceil((num_frames - start_idx_frame) / (seq_length + 1)))
 
             for ii in xrange(num_test_pass):
                 for jj in xrange(seq_length + 1):
-                    if start_frame_idx + jj < num_frames:
-                        batch_img[0, jj] = cv2.resize(raw_imgs[start_frame_idx + jj], (width, height), interpolation=cv2.INTER_CUBIC)
+                    if idx_frame + jj < num_frames:
+                        batch_img[0, jj] = cv2.resize(
+                            raw_imgs[idx_frame + jj], (width, height), interpolation=cv2.INTER_CUBIC)
                     else:
-                        batch_img[0, jj] = cv2.resize(raw_imgs[num_frames-1], (width, height), interpolation=cv2.INTER_CUBIC)                        
+                        batch_img[0, jj] = cv2.resize(
+                            raw_imgs[num_frames - 1], (width, height), interpolation=cv2.INTER_CUBIC)
 
                 tmp_box = np.array(
-                    gt_bbox[idx_obj, start_frame_idx: start_frame_idx + seq_length + 1, :4])
+                    gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4])
                 tmp_box[:, 0] = tmp_box[:, 0] / raw_imgs.shape[2] * width
                 tmp_box[:, 1] = tmp_box[:, 1] / raw_imgs.shape[1] * height
                 tmp_box[:, 2] = tmp_box[:, 2] / raw_imgs.shape[2] * width
@@ -126,14 +137,16 @@ if __name__ == "__main__":
 
                 batch_box[0] = tmp_box
                 init_box[0] = tmp_box[0, :]
-                batch_score[0] = gt_bbox[idx_obj, start_frame_idx: start_frame_idx + seq_length + 1, 4]
+                batch_score[0] = gt_bbox[
+                    idx_obj, idx_frame: idx_frame + seq_length + 1, 4]
 
                 if ii == 0:
-                    init_rnn_state = np.concat(1, [dt.inverse_transform_box(init_box), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])])
+                    init_rnn_state = np.concatenate(1, [dt.inverse_transform_box(
+                        init_box, height, width), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])])
                 else:
                     init_rnn_state = last_rnn_state
 
-                # test a sequence 
+                # test a sequence
                 feed_data = {tracking_model['imgs']: batch_img,
                              tracking_model['init_bbox']: init_box,
                              tracking_model['gt_bbox']: batch_box,
@@ -149,14 +162,20 @@ if __name__ == "__main__":
                     results_dict[name] = rr
 
                 last_rnn_state = results_dict['final_rnn_state']
-                pred_bbox = results_dict['predict_bbox']
-                pred_score = results_dict['predict_score']
-                IOU_score = results_dict['IOU_score']
+                pred_bbox.append(results_dict['predict_bbox'])
+                pred_score.append(results_dict['predict_score'])
+                IOU_score.append(results_dict['IOU_score'])
 
                 # save results
                 print IOU_score
 
-                # print image
+                idx_frame += (seq_length + 1)
 
+            # print image
+            pred_bbox = np.concatenate(0, pred_bbox)
+            pred_score = np.concatenate(0, pred_score)
+
+            plot_batch_frame_with_bbox(("valid_seq_%03d_obj_%03d" % (idx_seq, idx_obj)),
+                                       raw_imgs[start_idx_frame:], pred_bbox, gt_bbox[start_idx_frame:], pred_score)
 
     sess.close()

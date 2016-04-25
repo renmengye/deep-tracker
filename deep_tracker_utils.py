@@ -37,36 +37,32 @@ def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, predict_score, nu
     plt.savefig(fname, dpi=80)
     plt.close('all')
 
-def plot_batch_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, predict_score):
-    f, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+def plot_batch_frame_with_bbox(fname, data, pred_bbox, gt_bbox, predict_score):
+    
+    for idx, img in enumerate(data):
+        f, axarr = plt.subplots(1, 1)
 
-    for ii in xrange(num_row):
-        for jj in xrange(num_col):
-            axarr[ii, jj].set_axis_off()
-            idx = ii * num_col + jj
-            axarr[ii, jj].imshow(data[idx], cmap=cm.Greys_r)
+        axarr[0, 0].set_axis_off()        
+        axarr[0, 0].imshow(img, cmap=cm.Greys_r)
 
-            if predict_score[idx] > 0.5:
-                axarr[ii, jj].add_patch(patches.Rectangle(
-                    (pred_bbox[idx][0], pred_bbox[idx][1]),
-                    pred_bbox[idx][2] - pred_bbox[idx][0],
-                    pred_bbox[idx][3] - pred_bbox[idx][1],
-                    fill=False,
-                    color='r'))
-
-            axarr[ii, jj].add_patch(patches.Rectangle(
-                (gt_bbox[idx][0], gt_bbox[idx][1]),
-                gt_bbox[idx][2] - gt_bbox[idx][0],
-                gt_bbox[idx][3] - gt_bbox[idx][1],
+        if predict_score[idx] > 0.5:
+            axarr[0, 0].add_patch(patches.Rectangle(
+                (pred_bbox[idx][0], pred_bbox[idx][1]),
+                pred_bbox[idx][2] - pred_bbox[idx][0],
+                pred_bbox[idx][3] - pred_bbox[idx][1],
                 fill=False,
-                color='b'))
+                color='r'))
 
-            axarr[ii, jj].text(0, 0, ("%5.2f" % iou[idx]),
-                               color=(0, 0, 0), size=8)
+        axarr[0, 0].add_patch(patches.Rectangle(
+            (gt_bbox[idx][0], gt_bbox[idx][1]),
+            gt_bbox[idx][2] - gt_bbox[idx][0],
+            gt_bbox[idx][3] - gt_bbox[idx][1],
+            fill=False,
+            color='b'))
 
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=80)
-    plt.close('all')
+        plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
+        plt.savefig(fname + ("%05d" % (idx)), dpi=80)
+        plt.close('all')
 
 def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width):
 
