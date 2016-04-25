@@ -131,6 +131,24 @@ if __name__ == "__main__":
     feat_map_height = 16
     feat_map_width = 56
     img_channel = 3
+    num_train_seq = 16
+
+    # read data
+    train_video_seq = []
+    valid_video_seq = []
+    num_valid_seq = 0
+    train_data_full = get_dataset(folder, 'train')
+    
+    with sh.ShardedFileReader(train_data_full) as reader:    
+        num_seq = len(reader)
+        
+        for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
+            if idx_seq < num_train_seq:
+                train_video_seq.append(seq_data)
+            else:            
+                if seq_data['gt_bbox'].shape[0] > 0:
+                    valid_video_seq.append(seq_data)
+                    num_valid_seq += 1
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-003'
@@ -143,41 +161,19 @@ if __name__ == "__main__":
         name='Traning IOU Loss of BBox',
         buffer_size=1)
 
-    logp_logger_L2 = TimeSeriesLogger(
-        os.path.join(logs_folder, 'L2_loss.csv'),
-        labels=['L2 loss'],
-        name='Traning L2 Loss of BBox',
-        buffer_size=1)
-
     logp_logger_CE = TimeSeriesLogger(
         os.path.join(logs_folder, 'CE_loss.csv'),
         labels=['CE loss'],
         name='Traning CE Loss',
         buffer_size=1)
 
-    draw_img_name_0 = os.path.join(logs_folder, 'draw_bbox_0.png')
-    draw_img_name_1 = os.path.join(logs_folder, 'draw_bbox_1.png')
-    draw_img_name_2 = os.path.join(logs_folder, 'draw_bbox_2.png')
-    draw_img_name_3 = os.path.join(logs_folder, 'draw_bbox_3.png')
-    draw_img_name_4 = os.path.join(logs_folder, 'draw_bbox_4.png')
+    draw_img_name = []
 
-    if not os.path.exists(draw_img_name_0):
-        log_register(draw_img_name_0, 'image', 'Tracking Bounding Box 1')
+    for i in xrange(num_valid_seq):
+        draw_img_name.append(os.path.join(logs_folder, 'draw_bbox_{}.png'.format(i)))
 
-    if not os.path.exists(draw_img_name_1):
-        log_register(draw_img_name_1, 'image', 'Tracking Bounding Box 2')
-
-    if not os.path.exists(draw_img_name_2):
-        log_register(draw_img_name_2, 'image', 'Tracking Bounding Box 3')
-
-    if not os.path.exists(draw_img_name_3):
-        log_register(draw_img_name_3, 'image', 'Tracking Bounding Box 4')
-
-    if not os.path.exists(draw_img_name_4):
-        log_register(draw_img_name_4, 'image', 'Tracking Bounding Box 5')
-
-    # read data
-    train_data = get_dataset(folder, 'train')
+        if not os.path.exists(draw_img_name[i]):
+            log_register(draw_img_name[i], 'image', 'Tracking Bounding Box {}'.format(i))
     
     # setting model
     opt_tracking = {}
@@ -215,127 +211,107 @@ if __name__ == "__main__":
     nodes_run = ['train_step', 'IOU_loss', 'predict_heat_map']
     node_list = [tracking_model[i] for i in nodes_run]
 
-    # split data for training and validation
-    with sh.ShardedFileReader(train_data) as reader:
+    # compute sampling distribution
+    cdf_seq = np.zeros(num_train_seq)
+    total_count = 0
+    for idx_seq, seq_data in enumerate(train_video_seq):
+        if idx_seq == 0:
+            cdf_seq[idx_seq] = seq_data['images_0'].shape[0]
+        else:
+            cdf_seq[idx_seq] = cdf_seq[idx_seq - 1] + \
+                seq_data['images_0'].shape[0]
 
-        
+        total_count += seq_data['images_0'].shape[0]
 
+    cdf_seq /= total_count
 
+    # training loop
+    step = 0
+    
+    while step < max_iter:
+        idx_sample = 0
+        anneal_prob = 0
+        batch_img = np.zeros([batch_size, seq_length + 1, height, width, img_channel])
+        gt_raw_heat_map = np.zeros([batch_size, seq_length + 1, height, width])
+        gt_heat_map = np.zeros([batch_size, seq_length + 1, feat_map_height, feat_map_width])
 
+        while idx_sample < batch_size:
+            # sample sequence based on the proportion of its length
+            rand_val = np.random.rand()
+            idx_boolean = np.logical_and(
+                rand_val < cdf_seq, rand_val > np.concatenate(([0], cdf_seq[:-1])))
+            idx_video = [i for i, elem in enumerate(idx_boolean) if elem]
 
-        step = 0
-        num_seq = len(reader)
-        video_seq = []
+            seq_data = train_video_seq[idx_video[0]]
 
-        # read data
-        cdf_seq = np.zeros(num_seq)
-        total_count = 0
-        for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
-            video_seq.append(seq_data)
+            raw_imgs = seq_data['images_0']
+            # gt_bbox = [left top right bottom flag]
+            gt_bbox = seq_data['gt_bbox']
+            num_obj = gt_bbox.shape[0]
+            num_imgs = raw_imgs.shape[0]
 
-            if idx_seq == 0:
-                cdf_seq[idx_seq] = seq_data['images_0'].shape[0]
-            else:
-                cdf_seq[idx_seq] = cdf_seq[idx_seq - 1] + \
-                    seq_data['images_0'].shape[0]
+            if num_obj < 1:
+                continue
 
-            total_count += seq_data['images_0'].shape[0]
+            keep_sampling = True                
+            idx_obj = np.random.randint(num_obj)
+            idx_frame = np.random.randint(num_imgs - seq_length)
 
-        cdf_seq /= total_count
-
-        # training loop
-        while step < max_iter:
-            idx_sample = 0
-            anneal_prob = 0
-            batch_img = np.zeros([batch_size, seq_length + 1, height, width, img_channel])
-            gt_raw_heat_map = np.zeros([batch_size, seq_length + 1, height, width])
-            gt_heat_map = np.zeros([batch_size, seq_length + 1, feat_map_height, feat_map_width])
-
-            while idx_sample < batch_size:
-                # sample sequence based on the proportion of its length
-                rand_val = np.random.rand()
-                idx_boolean = np.logical_and(
-                    rand_val < cdf_seq, rand_val > np.concatenate(([0], cdf_seq[:-1])))
-                idx_video = [i for i, elem in enumerate(idx_boolean) if elem]
-
-                seq_data = video_seq[idx_video[0]]
-
-                raw_imgs = seq_data['images_0']
-                # gt_bbox = [left top right bottom flag]
-                gt_bbox = seq_data['gt_bbox']
-                num_obj = gt_bbox.shape[0]
-                num_imgs = raw_imgs.shape[0]
-
-                if num_obj < 1:
-                    continue
-
-                keep_sampling = True                
-                idx_obj = np.random.randint(num_obj)
-                idx_frame = np.random.randint(num_imgs - seq_length)
-
-                while keep_sampling:
-                    if gt_bbox[idx_obj, idx_frame, 4] == 1:
-                        keep_sampling = False
-                    else:                    
-                        idx_obj = np.random.randint(num_obj)
-                        idx_frame = np.random.randint(num_imgs - seq_length)
-                
-                tmp_bbox = np.array(gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4])
-                tmp_bbox[:, 0] = (tmp_bbox[:, 0] / raw_imgs.shape[2] * width).astype(int)
-                tmp_bbox[:, 1] = (tmp_bbox[:, 1] / raw_imgs.shape[1] * height).astype(int)
-                tmp_bbox[:, 2] = (tmp_bbox[:, 2] / raw_imgs.shape[2] * width).astype(int)
-                tmp_bbox[:, 3] = (tmp_bbox[:, 3] / raw_imgs.shape[1] * height).astype(int)
-
-                for ii in xrange(seq_length + 1):
-                    batch_img[idx_sample, ii] = cv2.resize(raw_imgs[idx_frame + ii], (width, height), interpolation=cv2.INTER_CUBIC)
-
-                    gt_raw_heat_map[idx_sample, ii, tmp_bbox[ii, 1] : tmp_bbox[ii, 3], tmp_bbox[ii, 0] : tmp_bbox[ii, 2]] = 1
-                    gt_heat_map[idx_sample, ii] = cv2.resize(gt_raw_heat_map, (feat_map_width, feat_map_height), interpolation=cv2.INTER_NEAREST)
-
-                idx_sample += 1
-
-            # training for current batch
-            feed_data = {tracking_model['imgs']: batch_img,
-                         tracking_model['init_heat_map']: gt_heat_map[:, 0, :, :],
-                         tracking_model['gt_heat_map']: gt_heat_map,                         
-                         tracking_model['anneal_threshold']: [anneal_prob],
-                         tracking_model['phase_train']: True}
-
-            results = sess.run(node_list, feed_dict=feed_data)
-
-            results_dict = {}
-            for rr, name in zip(results, nodes_run):
-                results_dict[name] = rr
-
-            logp_logger_IOU.add(step + 1, results_dict['IOU_loss'])
+            while keep_sampling:
+                if gt_bbox[idx_obj, idx_frame, 4] == 1:
+                    keep_sampling = False
+                else:                    
+                    idx_obj = np.random.randint(num_obj)
+                    idx_frame = np.random.randint(num_imgs - seq_length)
             
-            # display training statistics
-            if (step + 1) % display_iter == 0:
-                print "Train Step = %06d || IOU Loss = %e" % (step + 1, results_dict['IOU_loss'])
+            tmp_bbox = np.array(gt_bbox[idx_obj, idx_frame: idx_frame + seq_length + 1, :4])
+            tmp_bbox[:, 0] = (tmp_bbox[:, 0] / raw_imgs.shape[2] * width).astype(int)
+            tmp_bbox[:, 1] = (tmp_bbox[:, 1] / raw_imgs.shape[1] * height).astype(int)
+            tmp_bbox[:, 2] = (tmp_bbox[:, 2] / raw_imgs.shape[2] * width).astype(int)
+            tmp_bbox[:, 3] = (tmp_bbox[:, 3] / raw_imgs.shape[1] * height).astype(int)
 
-            # save model
-            if (step + 1) % anneal_iter == 0:                
-                anneal_prob += 0.1
-                anneal_prob = min(anneal_prob, 1.0)
+            for ii in xrange(seq_length + 1):
+                batch_img[idx_sample, ii] = cv2.resize(raw_imgs[idx_frame + ii], (width, height), interpolation=cv2.INTER_CUBIC)
 
-            # save model
-            if (step + 1) % snapshot_iter == 0:
-                saver.save(sess, 'my_conv_lstm_tracker.ckpt')
+                gt_raw_heat_map[idx_sample, ii, tmp_bbox[ii, 1] : tmp_bbox[ii, 3], tmp_bbox[ii, 0] : tmp_bbox[ii, 2]] = 1
+                gt_heat_map[idx_sample, ii] = cv2.resize(gt_raw_heat_map, (feat_map_width, feat_map_height), interpolation=cv2.INTER_NEAREST)
 
-            # draw bbox on selected data
-            if (step + 1) % draw_iter == 0:
-                # draw_sequence(0, draw_img_name_0, video_seq,
-                #               tracking_model, sess, seq_length, height, width)
-                # draw_sequence(3, draw_img_name_1, video_seq,
-                #               tracking_model, sess, seq_length, height, width)
-                # draw_sequence(11, draw_img_name_2, video_seq,
-                #               tracking_model, sess, seq_length, height, width)
-                # draw_sequence(14, draw_img_name_3, video_seq,
-                #               tracking_model, sess, seq_length, height, width)
-                # draw_sequence(20, draw_img_name_4, video_seq,
-                #               tracking_model, sess, seq_length, height, width)
-                pass
+            idx_sample += 1
 
-            step += 1
+        # training for current batch
+        feed_data = {tracking_model['imgs']: batch_img,
+                     tracking_model['init_heat_map']: gt_heat_map[:, 0, :, :],
+                     tracking_model['gt_heat_map']: gt_heat_map,                         
+                     tracking_model['anneal_threshold']: [anneal_prob],
+                     tracking_model['phase_train']: True}
+
+        results = sess.run(node_list, feed_dict=feed_data)
+
+        results_dict = {}
+        for rr, name in zip(results, nodes_run):
+            results_dict[name] = rr
+
+        logp_logger_IOU.add(step + 1, results_dict['IOU_loss'])
+        
+        # display training statistics
+        if (step + 1) % display_iter == 0:
+            print "Train Step = %06d || IOU Loss = %e" % (step + 1, results_dict['IOU_loss'])
+
+        # save model
+        if (step + 1) % anneal_iter == 0:                
+            anneal_prob += 0.1
+            anneal_prob = min(anneal_prob, 1.0)
+
+        # save model
+        if (step + 1) % snapshot_iter == 0:
+            saver.save(sess, 'my_conv_lstm_tracker.ckpt')
+
+        # draw bbox on selected data
+        if (step + 1) % draw_iter == 0:
+            # for i in xrange(num_valid_seq):            
+            #     ut.draw_sequence(i, draw_img_name[i], valid_video_seq, tracking_model, sess, seq_length, height, width)
+            pass
+
+        step += 1
 
     sess.close()

@@ -20,10 +20,11 @@ from kitti import get_dataset
 
 if __name__ == "__main__":
     folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
+    save_path = '/ais/gobi4/rjliao/Projects/Kitti/tracking_models'
     device = '/gpu:2'
 
     max_iter = 100000
-    batch_size = 5
+    batch_size = 10
     display_iter = 10
     draw_iter = 50
     seq_length = 40     # sequence length for training
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     opt_tracking['img_height'] = height
     opt_tracking['img_width'] = width
     opt_tracking['weight_decay'] = 1.0e-7
-    opt_tracking['rnn_hidden_dim'] = 256
+    opt_tracking['rnn_hidden_dim'] = 128
     opt_tracking['base_learn_rate'] = 1.0e-3
     opt_tracking['learn_rate_decay_step'] = 1000
     opt_tracking['learn_rate_decay_rate'] = 0.96
@@ -215,7 +216,7 @@ if __name__ == "__main__":
 
         # save model
         if (step + 1) % snapshot_iter == 0:
-            saver.save(sess, 'my_deep_tracker.ckpt')
+            saver.save(sess, os.path.join(save_path, ("deep_tracker_%07d.ckpt" % (step + 1))))
 
         # draw bbox on selected data
         if (step + 1) % draw_iter == 0:

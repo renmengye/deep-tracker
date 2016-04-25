@@ -199,6 +199,7 @@ def build_tracking_model(opt, device='/cpu:0'):
         batch_size = img_shape[0]
 
         init_bbox = tf.placeholder(tf.float32, [None, 4])
+        init_rnn_state = tf.placeholder(tf.float32, [None, rnn_hidden_dim * 2])
         gt_bbox = tf.placeholder(tf.float32, [None, rnn_seq_len + 1, 4])
         gt_score = tf.placeholder(tf.float32, [None, rnn_seq_len + 1])
         IOU_score = [None] * (rnn_seq_len + 1)
@@ -208,6 +209,7 @@ def build_tracking_model(opt, device='/cpu:0'):
         model['gt_bbox'] = gt_bbox
         model['gt_score'] = gt_score
         model['init_bbox'] = init_bbox
+        model['init_rnn_state'] = init_rnn_state
         model['phase_train'] = phase_train
         model['anneal_threshold'] = anneal_threshold
 
@@ -255,8 +257,10 @@ def build_tracking_model(opt, device='/cpu:0'):
 
         # rnn_state[-1] = tf.zeros(tf.pack([batch_size, rnn_hidden_dim * 2]))
 
-        rnn_state[-1] = tf.concat(1, [inverse_transform_box(gt_bbox[:, 0, :],
-                                                            height, width), tf.zeros(tf.pack([batch_size, rnn_hidden_dim * 2 - 4]))])
+        # rnn_state[-1] = tf.concat(1, [inverse_transform_box(gt_bbox[:, 0, :],
+        #                                                     height, width), tf.zeros(tf.pack([batch_size, rnn_hidden_dim * 2 - 4]))])
+
+        rnn_state[-1] = init_rnn_state
 
         rnn_hidden_feat = [None] * rnn_seq_len
 
@@ -332,6 +336,8 @@ def build_tracking_model(opt, device='/cpu:0'):
             # compute IOU
             IOU_score[
                 tt + 1] = compute_IOU(predict_bbox[tt + 1], gt_bbox[:, tt + 1, :])
+
+        model['final_rnn_state'] = rnn_state[rnn_seq_len-1]
 
         # # [B, T, 4]
         # predict_bbox_reshape = tf.concat(
