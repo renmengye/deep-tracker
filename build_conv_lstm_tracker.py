@@ -22,23 +22,28 @@ def get_device_fn(device):
 
     return _device_fn
 
-def compute_soft_IOU_score(heat_map_A, heat_map_B):
+def compute_soft_IOU_score(pred_heat_map, gt_heat_map):
     """Compute the Intersection Over Union.
     Args:
-        heat_map_A: [B X T X H X W tensor]
-        heat_map_B: [B X T X H X W tensor] 
+        pred_heat_map: [B X T X H X W tensor]
+        gt_heat_map: [B X T X H X W tensor] 
 
     Return:
         IOU: [N X 1 tensor]
     """
-    intersect_tensor = heat_map_A * heat_map_B
-    area_A = tf.reduce_sum(heat_map_A, [2, 3])
-    area_B = tf.reduce_sum(heat_map_B, [2, 3])
+    intersect_tensor = pred_heat_map * gt_heat_map
+    pred_area = tf.reduce_sum(pred_heat_map, [2, 3])
+    gt_area = tf.reduce_sum(gt_heat_map, [2, 3])
+    valid_len = tf.reduce_sum(tf.to_float(gt_area > 0), 1)
     intersect_area = tf.reduce_sum(intersect_tensor, [2, 3])    
-    union_area = area_A + area_B - intersect_area
+    union_area = pred_area + gt_area - intersect_area
     iou_all = intersect_area / (union_area + 1.0e-5)
     
-    return tf.reduce_sum(iou_all) / tf.reduce_prod(tf.to_float(tf.shape(iou_all)))
+    iou_batch = tf.reduce_sum(iou_all, 1) / valid_len
+    iou_shape = tf.shape(iou_all)
+
+    # return tf.reduce_sum(iou_batch) / tf.to_float(iou_shape[0])
+    return tf.reduce_sum(gt_area)
 
 def build_tracking_model(opt, device='/cpu:0'):
     """
@@ -171,8 +176,7 @@ def build_tracking_model(opt, device='/cpu:0'):
             conv_lstm_hidden_feat[tt] = tf.slice(conv_lstm_state[tt], [0, 0, 0, conv_lstm_hidden_depth], [-1, -1, -1, conv_lstm_hidden_depth])
 
             # predict heat map
-            post_cnn_map = post_cnn_model(conv_lstm_hidden_feat[tt])
-            predict_heat_map[tt+1] = tf.squeeze(post_cnn_map[-1])
+            predict_heat_map[tt+1] = tf.squeeze(post_cnn_model(conv_lstm_hidden_feat[tt])[-1])
     
         # compute IOU loss
         predict_heat_map = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in predict_heat_map[1:]])
