@@ -158,5 +158,5 @@ def get_dataset(folder, split):
 
 
 if __name__ == '__main__':
-    folder = '/ais/gobi3/u/mren/data/kitti/tracking'
+    folder = '/ais/gobi4/mren/data/kitti/tracking'
     get_dataset(folder, 'train')

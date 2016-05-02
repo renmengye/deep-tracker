@@ -42,7 +42,7 @@ def get_model(opt, device='/cpu:0'):
 
 def get_dataset(opt):
     dataset = {}
-    folder = '/ais/gobi3/u/mren/data/kitti/tracking/training'
+    folder = '/ais/gobi4/mren/data/kitti/tracking/training'
     dataset['train'] = KITTIPatchData(
         folder, opt, split='train', usage='match').get_dataset()
     dataset['valid'] = KITTIPatchData(

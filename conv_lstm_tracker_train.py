@@ -116,7 +116,7 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
 
 if __name__ == "__main__":
     
-    folder = '/ais/gobi3/u/mren/data/kitti/tracking/'
+    folder = '/ais/gobi4/mren/data/kitti/tracking/'
     device = '/gpu:2'
 
     max_iter = 100000
