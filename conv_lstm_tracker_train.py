@@ -1,14 +1,15 @@
 import cslab_environ
 
-import tensorflow as tf
+import argparse
 import numpy as np
-import sharded_hdf5 as sh
 import progress_bar as pb
+import sharded_hdf5 as sh
+import tensorflow as tf
 
-import os
 import cv2
-import math
 import logger
+import math
+import os
 
 import matplotlib
 matplotlib.use('Agg')
@@ -19,7 +20,7 @@ import progress_bar as pb
 
 from deep_dashboard_utils import log_register, TimeSeriesLogger
 
-from build_convlstm_tracker import build_tracking_model
+from build_conv_lstm_tracker import build_tracking_model
 
 # from tud import get_dataset
 from kitti import get_dataset
@@ -114,10 +115,20 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
                          1:], draw_IOU_score, num_row, num_col)
 
 
-if __name__ == "__main__":
-    
+def parse_args():
+    parser = argparse.ArgumentParser(description='Deep conv tracker')
+    parser.add_argument('--gpu', default=-1, type=int)
+    parser.add_argument('--logs', default='../logs')
+    return parser.parse_args()
+
+
+if __name__ == "__main__":    
     folder = '/ais/gobi4/mren/data/kitti/tracking/'
-    device = '/gpu:3'
+    args = parse_args()
+    if args.gpu == '-1':
+        device = '/cpu:0'
+    else:
+        device = '/gpu:{}'.format(args.gpu)
 
     max_iter = 100000
     batch_size = 2
@@ -143,16 +154,19 @@ if __name__ == "__main__":
         num_seq = len(reader)
         
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
-            if idx_seq < num_train_seq:
+            if idx_seq == 0:
                 train_video_seq.append(seq_data)
-            else:            
+            elif idx_seq == 1:            
                 if seq_data['gt_bbox'].shape[0] > 0:
                     valid_video_seq.append(seq_data)
                     num_valid_seq += 1
+            else:
+                break
+
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-003'
-    logs_folder = '/u/rjliao/public_html/results'
+    logs_folder = args.logs
     logs_folder = os.path.join(logs_folder, model_id)
 
     logp_logger_IOU = TimeSeriesLogger(
@@ -200,7 +214,7 @@ if __name__ == "__main__":
     opt_tracking['learn_rate_decay_step'] = 1000
     opt_tracking['learn_rate_decay_rate'] = 0.96
     
-    opt_tracking['pretrain_model_filename'] = "/ais/gobi3/u/mren/results/img-count/fg_segm-20160419004323/weights.h5"
+    opt_tracking['pretrain_model_filename'] = "/ais/gobi4/mren/results/img-count/fg_segm-20160419004323/weights.h5"
     opt_tracking['is_pretrain'] = True
 
     tracking_model = build_tracking_model(opt_tracking, device)

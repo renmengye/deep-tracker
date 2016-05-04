@@ -8,10 +8,12 @@ import numpy as np
 
 from grad_clip_optim import GradientClipOptimizer
 
+
 def get_device_fn(device):
     """Choose device for different ops."""
-    OPS_ON_CPU = set(['ResizeBilinear', 'Print', 'ResizeBilinearGrad', 'Mod', 'CumMin',
-                      'CumMinGrad', 'Hungarian', 'Reverse', 'SparseToDense', 'BatchMatMul'])
+    OPS_ON_CPU = set(['ResizeBilinear', 'Print', 'ResizeBilinearGrad', 'Mod',
+                      'CumMin', 'CumMinGrad', 'Hungarian', 'Reverse',
+                      'SparseToDense', 'BatchMatMul'])
 
     def _device_fn(op):
         if op.type in OPS_ON_CPU:
@@ -21,6 +23,7 @@ def get_device_fn(device):
             return device
 
     return _device_fn
+
 
 def compute_soft_IOU_score(pred_heat_map, gt_heat_map):
     """Compute the Intersection Over Union.
@@ -35,15 +38,16 @@ def compute_soft_IOU_score(pred_heat_map, gt_heat_map):
     pred_area = tf.reduce_sum(pred_heat_map, [2, 3])
     gt_area = tf.reduce_sum(gt_heat_map, [2, 3])
     valid_len = tf.reduce_sum(tf.to_float(gt_area > 0), 1)
-    intersect_area = tf.reduce_sum(intersect_tensor, [2, 3])    
+    intersect_area = tf.reduce_sum(intersect_tensor, [2, 3])
     union_area = pred_area + gt_area - intersect_area
     iou_all = intersect_area / (union_area + 1.0e-5)
-    
+
     iou_batch = tf.reduce_sum(iou_all, 1) / valid_len
     iou_shape = tf.shape(iou_all)
 
     # return tf.reduce_sum(iou_batch) / tf.to_float(iou_shape[0])
     return tf.reduce_sum(gt_area)
+
 
 def build_tracking_model(opt, device='/cpu:0'):
     """
@@ -56,12 +60,12 @@ def build_tracking_model(opt, device='/cpu:0'):
     height = opt['img_height']
     width = opt['img_width']
 
-    # segmentation CNN    
+    # segmentation CNN
     seg_cnn_filter_size = opt['seg_cnn_filter_size']
     seg_cnn_num_filter = opt['seg_cnn_num_filter']
-    seg_cnn_pool_size = opt['seg_cnn_pool_size']    
+    seg_cnn_pool_size = opt['seg_cnn_pool_size']
     seg_cnn_use_bn = opt['seg_cnn_use_bn']
-    
+
     # matching CNN
 
     # convolutional LSTM
@@ -69,30 +73,33 @@ def build_tracking_model(opt, device='/cpu:0'):
     conv_lstm_filter_size = opt['conv_lstm_filter_size']
     conv_lstm_hidden_depth = opt['conv_lstm_hidden_depth']
 
-    # optimization parameters    
+    # optimization parameters
     weight_decay = opt['weight_decay']
     base_learn_rate = opt['base_learn_rate']
     learn_rate_decay_step = opt['learn_rate_decay_step']
     learn_rate_decay_rate = opt['learn_rate_decay_rate']
 
-    pretrain_model_filename = opt['pretrain_model_filename']    
+    pretrain_model_filename = opt['pretrain_model_filename']
     is_pretrain = opt['is_pretrain']
 
     with tf.device(get_device_fn(device)):
         phase_train = tf.placeholder('bool')
         anneal_threshold = tf.placeholder(tf.float32, [1])
 
-        # input image [B, T+1, H, W, C]            
-        imgs = tf.placeholder(tf.float32, [None, conv_lstm_seq_len + 1, height, width, num_channel])        
+        # input image [B, T+1, H, W, C]
+        imgs = tf.placeholder(
+            tf.float32, [None, conv_lstm_seq_len + 1, height, width,
+                         num_channel])
         init_heat_map = tf.placeholder(tf.float32, [None, None, None])
-        gt_heat_map = tf.placeholder(tf.float32, [None, conv_lstm_seq_len + 1, None, None])
-        
+        gt_heat_map = tf.placeholder(
+            tf.float32, [None, conv_lstm_seq_len + 1, None, None])
+
         img_shape = tf.shape(imgs)
-        batch_size = img_shape[0]        
-        
+        batch_size = img_shape[0]
+
         IOU_score = [None] * (conv_lstm_seq_len + 1)
-        
-        model['imgs'] = imgs        
+
+        model['imgs'] = imgs
         model['gt_heat_map'] = gt_heat_map
         model['init_heat_map'] = init_heat_map
         model['phase_train'] = phase_train
@@ -101,7 +108,7 @@ def build_tracking_model(opt, device='/cpu:0'):
         conv_lstm_state = [None] * (conv_lstm_seq_len + 1)
         predict_heat_map = [None] * (conv_lstm_seq_len + 1)
         predict_heat_map[0] = gt_heat_map[:, 0, :, :]
-        
+
         # define a CNN model
         seg_cnn_filter = seg_cnn_filter_size
         seg_cnn_nlayer = len(seg_cnn_filter)
@@ -127,8 +134,10 @@ def build_tracking_model(opt, device='/cpu:0'):
                         cnn_init_w[ii]['{}_{}'.format(w, tt)] = h5f[
                             'cnn_{}_0_{}'.format(ii, w)][:]
 
-        seg_cnn_model = nn.cnn(seg_cnn_filter, seg_cnn_channel, seg_cnn_pool, seg_cnn_act,
-                           seg_cnn_bn, phase_train=phase_train, wd=weight_decay, init_weights=cnn_init_w)
+        seg_cnn_model = nn.cnn(seg_cnn_filter, seg_cnn_channel, seg_cnn_pool,
+                               seg_cnn_act, seg_cnn_bn,
+                               phase_train=phase_train, wd=weight_decay,
+                               init_weights=cnn_init_w)
 
         # define a convolutional LSTM model
         seg_cnn_subsample = np.array(seg_cnn_pool).prod()
@@ -136,28 +145,39 @@ def build_tracking_model(opt, device='/cpu:0'):
         conv_lstm_w = int(width / seg_cnn_subsample)
 
         conv_lstm_state = [None] * (conv_lstm_seq_len + 1)
-        conv_lstm_state[-1] = tf.zeros(tf.pack([batch_size, conv_lstm_h, conv_lstm_w, conv_lstm_hidden_depth * 2]))
+        conv_lstm_state[-1] = tf.zeros(
+            tf.pack([batch_size, conv_lstm_h, conv_lstm_w,
+                     conv_lstm_hidden_depth * 2]))
 
         conv_lstm_hidden_feat = [None] * conv_lstm_seq_len
 
-        conv_lstm_cell = nn.conv_lstm(3 * seg_cnn_channel[-1], conv_lstm_hidden_depth, conv_lstm_filter_size, wd=weight_decay)
+        conv_lstm_cell = nn.conv_lstm(
+            3 * seg_cnn_channel[-1], conv_lstm_hidden_depth,
+            conv_lstm_filter_size, wd=weight_decay)
 
         # define 1 layer conv:
-        post_cnn_model = nn.cnn([1], [conv_lstm_hidden_depth, 1], [None], [tf.sigmoid], [None], phase_train=phase_train, wd=weight_decay)
+        post_cnn_model = nn.cnn([1], [conv_lstm_hidden_depth, 1], [None],
+                                [tf.sigmoid], [None], phase_train=phase_train,
+                                wd=weight_decay)
 
         # training through time
         for tt in xrange(conv_lstm_seq_len):
             # extract global segment CNN feature map of the current frame
             seg_cnn_map = seg_cnn_model(imgs[:, tt, :, :, :])
             seg_cnn_feat_map = seg_cnn_map[-1]
-            seg_cnn_feat_map = tf.stop_gradient(seg_cnn_feat_map)  # fix CNN during training
+            seg_cnn_feat_map = tf.stop_gradient(
+                seg_cnn_feat_map)  # fix CNN during training
             model['seg_cnn_feat_map'] = seg_cnn_feat_map
 
-            # extract ROI segment CNN feature map of the current frame            
-            use_pred_bbox = tf.to_float(tf.less(tf.random_uniform([1]), anneal_threshold))
-            tmp_mask = use_pred_bbox * predict_heat_map[tt] + (1 - use_pred_bbox) * gt_heat_map[:,tt,:,:]
-                
-            seg_cnn_roi_feat_map = seg_cnn_feat_map * tf.expand_dims(tmp_mask, 3)
+            # extract ROI segment CNN feature map of the current frame
+            use_pred_bbox = tf.to_float(
+                tf.less(tf.random_uniform([1]), anneal_threshold))
+            tmp_mask = use_pred_bbox * \
+                predict_heat_map[tt] + \
+                (1 - use_pred_bbox) * gt_heat_map[:, tt, :, :]
+
+            seg_cnn_roi_feat_map = seg_cnn_feat_map * \
+                tf.expand_dims(tmp_mask, 3)
             model['seg_cnn_roi_feat_map'] = seg_cnn_roi_feat_map
 
             # extract global CNN feature map of the next frame
@@ -168,23 +188,31 @@ def build_tracking_model(opt, device='/cpu:0'):
             model['seg_cnn_feat_map_next'] = seg_cnn_feat_map_next
 
             # going through a convolutional LSTM
-            # RNN input = global CNN feat map + ROI CNN feat map            
-            conv_lstm_input = tf.concat(3, [seg_cnn_feat_map, seg_cnn_roi_feat_map, seg_cnn_feat_map_next])
-            
-            conv_lstm_state[tt] = conv_lstm_cell(conv_lstm_input, conv_lstm_state[tt-1])
+            # RNN input = global CNN feat map + ROI CNN feat map
+            conv_lstm_input = tf.concat(
+                3, [seg_cnn_feat_map, seg_cnn_roi_feat_map,
+                    seg_cnn_feat_map_next])
 
-            conv_lstm_hidden_feat[tt] = tf.slice(conv_lstm_state[tt], [0, 0, 0, conv_lstm_hidden_depth], [-1, -1, -1, conv_lstm_hidden_depth])
+            conv_lstm_state[tt] = conv_lstm_cell(
+                conv_lstm_input, conv_lstm_state[tt - 1])
+
+            conv_lstm_hidden_feat[tt] = tf.slice(
+                conv_lstm_state[tt], [0, 0, 0, conv_lstm_hidden_depth],
+                [-1, -1, -1, conv_lstm_hidden_depth])
 
             # predict heat map
-            predict_heat_map[tt+1] = tf.squeeze(post_cnn_model(conv_lstm_hidden_feat[tt])[-1])
-    
+            predict_heat_map[tt + 1] = tf.squeeze(post_cnn_model(
+                conv_lstm_hidden_feat[tt])[-1])
+
         # compute IOU loss
-        predict_heat_map = tf.concat(1, [tf.expand_dims(tmp, 1) for tmp in predict_heat_map[1:]])
-        IOU_loss = -compute_soft_IOU_score(predict_heat_map, gt_heat_map[:,1:,:,:])
+        predict_heat_map = tf.concat(
+            1, [tf.expand_dims(tmp, 1) for tmp in predict_heat_map[1:]])
+        IOU_loss = - \
+            compute_soft_IOU_score(predict_heat_map, gt_heat_map[:, 1:, :, :])
 
         model['IOU_loss'] = IOU_loss
         model['predict_heat_map'] = predict_heat_map
-        
+
         global_step = tf.Variable(0.0)
         eps = 1e-7
 
