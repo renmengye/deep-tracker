@@ -45,8 +45,8 @@ def compute_soft_IOU_score(pred_heat_map, gt_heat_map):
     iou_batch = tf.reduce_sum(iou_all, 1) / valid_len
     iou_shape = tf.shape(iou_all)
 
-    # return tf.reduce_sum(iou_batch) / tf.to_float(iou_shape[0])
-    return tf.reduce_sum(gt_area)
+    return tf.reduce_sum(iou_batch) / tf.to_float(iou_shape[0])
+    # return tf.reduce_sum(gt_area)
 
 
 def build_tracking_model(opt, device='/cpu:0'):
@@ -225,5 +225,5 @@ def build_tracking_model(opt, device='/cpu:0'):
             tf.train.AdamOptimizer(learn_rate, epsilon=eps),
             clip=1.0).minimize(IOU_loss, global_step=global_step)
         model['train_step'] = train_step
-
+        
     return model
