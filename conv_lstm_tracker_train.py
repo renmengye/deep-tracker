@@ -29,36 +29,6 @@ from kitti import get_dataset
 import logger
 log = logger.get()
 
-def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col):
-    f, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
-
-    for ii in xrange(num_row):
-        for jj in xrange(num_col):
-            axarr[ii, jj].set_axis_off()
-            idx = ii * num_col + jj
-            axarr[ii, jj].imshow(data[idx], cmap=cm.Greys_r)
-
-            axarr[ii, jj].add_patch(patches.Rectangle(
-                (pred_bbox[idx][0], pred_bbox[idx][1]),
-                pred_bbox[idx][2] - pred_bbox[idx][0],
-                pred_bbox[idx][3] - pred_bbox[idx][1],
-                fill=False,
-                color='r'))
-
-            axarr[ii, jj].add_patch(patches.Rectangle(
-                (gt_bbox[idx][0], gt_bbox[idx][1]),
-                gt_bbox[idx][2] - gt_bbox[idx][0],
-                gt_bbox[idx][3] - gt_bbox[idx][1],
-                fill=False,
-                color='b'))
-
-            axarr[ii, jj].text(0, 0, ("%5.2f" % iou[idx]),
-                               color=(0, 0, 0), size=8)
-
-    plt.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=80)
-    plt.close('all')
-
 
 def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width):
 
@@ -85,9 +55,7 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, w
 
             draw_gt_box.append(tmp_box)
             count_draw += 1
-
         idx_draw_frame += 1
-
     return draw_imgs, draw_gt_box
 
 
@@ -95,26 +63,55 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
 
     draw_data = data[idx]
     draw_raw_imgs = draw_data['images_0']
-    # gt_bbox = [left top right bottom flag]
     draw_raw_gt_bbox = draw_data['gt_bbox']
 
     draw_imgs, draw_gt_box = collect_draw_sequence(
         draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, width)
+    num_ex = len(draw_imgs)
+    gt_heat_map = []
+    for ii in xrange(num_ex):
+        gt_heat_map.append(np.zeros([height, width], dtype='float32'))
+        gt_heat_map[ii][draw_gt_box[ii][1]: draw_gt_box[
+            ii][3], draw_gt_box[ii][0]: draw_gt_box[ii][2]] = 1
+        gt_heat_map[ii] = cv2.resize(
+            gt_heat_map[ii], (feat_map_width, feat_map_height),
+            interpolation=cv2.INTER_NEAREST)
 
     feed_data = {tracking_model['imgs']: np.expand_dims(draw_imgs, 0),
-                 tracking_model['init_bbox']: np.expand_dims(draw_gt_box[0], 0),
-                 tracking_model['gt_bbox']: np.expand_dims(draw_gt_box, 0),
+                 tracking_model['init_heat_map']: gt_heat_map[0],
+                 tracking_model['gt_heat_map']: np.expand_dims(gt_heat_map, 0),
                  tracking_model['anneal_threshold']: [1.0],
                  tracking_model['phase_train']: False}
 
-    draw_pred_bbox, draw_IOU_score = sess.run(
-        [tracking_model['predict_bbox'], tracking_model['IOU_score']], feed_dict=feed_data)
+    draw_pred_heat_map = sess.run(
+        tracking_model['predict_heat_map'], feed_dict=feed_data)
+    draw_pred_heat_map = np.squeeze(draw_pred_heat_map)
 
-    draw_pred_bbox = np.squeeze(draw_pred_bbox)
-    draw_IOU_score = np.squeeze(draw_IOU_score)
+    f1, axarr = plt.subplots(num_ex, 3, figsize=(10, num_row))
+    set_axis_off(axarr, num_ex, 3)
+
+    for ii in xrange(num_ex):
+        for jj in xrange(3):
+            if jj == 0:
+                x = draw_imgs[ii]
+            elif jj == 1:
+                x = gt_heat_map[ii]
+            else:
+                x = draw_pred_heat_map[ii]
+            ax = axarr[ii, jj]
+            ax.imshow(x)
+            ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(x.min(), x.max()),
+                    color=(0, 0, 0), size=8)
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+    pass
 
     num_col = 2
     num_row = seq_length / num_col
+    draw_data['gt_heat_map']
     plot_frame_with_bbox(draw_img_name, draw_imgs[1:], draw_pred_bbox, draw_gt_box[
                          1:], draw_IOU_score, num_row, num_col)
 
@@ -135,10 +132,10 @@ if __name__ == "__main__":
         device = '/gpu:{}'.format(args.gpu)
 
     max_iter = 100000
-    batch_size = 10
+    batch_size = 2
     display_iter = 10
-    draw_iter = 50
-    seq_length = 10     # sequence length for training
+    draw_iter = 1
+    seq_length = 3     # sequence length for training
     snapshot_iter = 500
     anneal_iter = 1000
     height = 128
@@ -146,7 +143,7 @@ if __name__ == "__main__":
     feat_map_height = 16
     feat_map_width = 56
     img_channel = 3
-    num_train_seq = 16
+    num_train_seq = 1
 
     # read data
     train_video_seq = []
@@ -158,12 +155,14 @@ if __name__ == "__main__":
         num_seq = len(reader)
 
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
-            if idx_seq < num_train_seq:
+            if idx_seq == 0:
                 train_video_seq.append(seq_data)
-            else:
+            elif idx_seq == 1:
                 if seq_data['gt_bbox'].shape[0] > 0:
                     valid_video_seq.append(seq_data)
                     num_valid_seq += 1
+            else:
+                break
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-003'
@@ -186,13 +185,13 @@ if __name__ == "__main__":
         logs_folder, 'draw_bbox_{}.png'.format(ii)) for ii in xrange(3)]
     [log_register(draw_img_name[ii], 'image', 'box') for ii in xrange(3)]
 
-    # for i in xrange(num_valid_seq):
-    #     draw_img_name.append(os.path.join(
-    #         logs_folder, 'draw_bbox_{}.png'.format(i)))
+    for i in xrange(num_valid_seq):
+        draw_img_name.append(os.path.join(
+            logs_folder, 'draw_bbox_{}.png'.format(i)))
 
-    #     if not os.path.exists(draw_img_name[i]):
-    #         log_register(draw_img_name[i], 'image',
-    #                      'Tracking Bounding Box {}'.format(i))
+        if not os.path.exists(draw_img_name[i]):
+            log_register(draw_img_name[i], 'image',
+                         'Tracking Bounding Box {}'.format(i))
 
     # setting model
     opt_tracking = {}
@@ -306,7 +305,7 @@ if __name__ == "__main__":
                 gt_raw_heat_map[idx_sample, ii, tmp_bbox[ii, 1]: tmp_bbox[
                     ii, 3], tmp_bbox[ii, 0]: tmp_bbox[ii, 2]] = 1
                 gt_heat_map[idx_sample, ii] = cv2.resize(
-                    gt_raw_heat_map[idx_sample, ii], 
+                    gt_raw_heat_map[idx_sample, ii],
                     (feat_map_width, feat_map_height),
                     interpolation=cv2.INTER_NEAREST)
             idx_sample += 1
@@ -342,17 +341,21 @@ if __name__ == "__main__":
 
         # draw bbox on selected data
         if (step + 1) % draw_iter == 0:
-            log.error(batch_img.shape)
-            pu.plot_thumbnails(
-                draw_img_name[0], batch_img, axis=1, max_items_per_row=4)
-            log.error(results_dict['predict_heat_map'].shape)
-            pu.plot_thumbnails(
-                draw_img_name[1], results_dict['predict_heat_map'], axis=1,
-                max_items_per_row=4)
-            pu.plot_thumbnails(
-                draw_img_name[2], gt_heat_map, axis=1,
-                max_items_per_row=4)
-            log.error(('GT max min', gt_heat_map.max(), gt_heat_map.min()))
+            # log.error(batch_img.shape)
+            # pu.plot_thumbnails(
+            #     draw_img_name[0], batch_img, axis=1, max_items_per_row=4)
+            # log.error(results_dict['predict_heat_map'].shape)
+            # pu.plot_thumbnails(
+            #     draw_img_name[1], results_dict['predict_heat_map'], axis=1,
+            #     max_items_per_row=4)
+            # pu.plot_thumbnails(
+            #     draw_img_name[2], gt_heat_map, axis=1,
+            #     max_items_per_row=4)
+            # log.error(('GT max min', gt_heat_map.max(), gt_heat_map.min()))
+
+            for i in xrange(num_valid_seq):
+                draw_sequence(i, draw_img_name[
+                              i], valid_video_seq, tracking_model, sess, seq_length, height, width)
 
             # for i in xrange(num_valid_seq):
             #     ut.draw_sequence(i, draw_img_name[i], valid_video_seq, tracking_model, sess, seq_length, height, width)
