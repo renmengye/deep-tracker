@@ -145,9 +145,8 @@ def build_tracking_model(opt, device='/cpu:0'):
         conv_lstm_w = int(width / seg_cnn_subsample)
 
         conv_lstm_state = [None] * (conv_lstm_seq_len + 1)
-        conv_lstm_state[-1] = tf.zeros(
-            tf.pack([batch_size, conv_lstm_h, conv_lstm_w,
-                     conv_lstm_hidden_depth * 2]))
+        conv_lstm_state[-1] = tf.concat(3, tf.zeros(tf.pack(
+            [batch_size, conv_lstm_h, conv_lstm_w, conv_lstm_hidden_depth * 2 - 1])), init_heat_map)
 
         conv_lstm_hidden_feat = [None] * conv_lstm_seq_len
 
