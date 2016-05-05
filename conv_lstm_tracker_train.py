@@ -26,6 +26,8 @@ from build_conv_lstm_tracker import build_tracking_model
 # from tud import get_dataset
 from kitti import get_dataset
 
+import logger
+log = logger.get()
 
 def plot_frame_with_bbox(fname, data, pred_bbox, gt_bbox, iou, num_row, num_col):
     f, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
@@ -182,15 +184,17 @@ if __name__ == "__main__":
         name='Traning CE Loss',
         buffer_size=1)
 
-    draw_img_name = []
+    draw_img_name = [os.path.join(
+        logs_folder, 'draw_bbox_{}.png'.format(ii)) for ii in xrange(3)]
+    [log_register(draw_img_name[ii], 'image', 'box') for ii in xrange(3)]
 
-    for i in xrange(num_valid_seq):
-        draw_img_name.append(os.path.join(
-            logs_folder, 'draw_bbox_{}.png'.format(i)))
+    # for i in xrange(num_valid_seq):
+    #     draw_img_name.append(os.path.join(
+    #         logs_folder, 'draw_bbox_{}.png'.format(i)))
 
-        if not os.path.exists(draw_img_name[i]):
-            log_register(draw_img_name[i], 'image',
-                         'Tracking Bounding Box {}'.format(i))
+    #     if not os.path.exists(draw_img_name[i]):
+    #         log_register(draw_img_name[i], 'image',
+    #                      'Tracking Bounding Box {}'.format(i))
 
     # setting model
     opt_tracking = {}
@@ -304,7 +308,8 @@ if __name__ == "__main__":
                 gt_raw_heat_map[idx_sample, ii, tmp_bbox[ii, 1]: tmp_bbox[
                     ii, 3], tmp_bbox[ii, 0]: tmp_bbox[ii, 2]] = 1
                 gt_heat_map[idx_sample, ii] = cv2.resize(
-                    gt_raw_heat_map, (feat_map_width, feat_map_height),
+                    gt_raw_heat_map[idx_sample, ii], 
+                    (feat_map_width, feat_map_height),
                     interpolation=cv2.INTER_NEAREST)
             idx_sample += 1
 
@@ -339,11 +344,17 @@ if __name__ == "__main__":
 
         # draw bbox on selected data
         if (step + 1) % draw_iter == 0:
+            log.error(batch_img.shape)
             pu.plot_thumbnails(
-                draw_img_name[0], batch_img, axis=1, max_iter_per_row=4)
+                draw_img_name[0], batch_img, axis=1, max_items_per_row=4)
+            log.error(results_dict['predict_heat_map'].shape)
             pu.plot_thumbnails(
-                draw_img_name[1], results['predict_heat_map'], axis=1,
+                draw_img_name[1], results_dict['predict_heat_map'], axis=1,
                 max_items_per_row=4)
+            pu.plot_thumbnails(
+                draw_img_name[2], gt_heat_map, axis=1,
+                max_items_per_row=4)
+            log.error(('GT max min', gt_heat_map.max(), gt_heat_map.min()))
 
             # for i in xrange(num_valid_seq):
             #     ut.draw_sequence(i, draw_img_name[i], valid_video_seq, tracking_model, sess, seq_length, height, width)
