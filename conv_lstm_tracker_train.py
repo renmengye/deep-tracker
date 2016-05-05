@@ -60,7 +60,6 @@ def collect_draw_sequence(draw_raw_imgs, draw_raw_gt_bbox, seq_length, height, w
 
 
 def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, height, width):
-
     draw_data = data[idx]
     draw_raw_imgs = draw_data['images_0']
     draw_raw_gt_bbox = draw_data['gt_bbox']
@@ -78,7 +77,7 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
             interpolation=cv2.INTER_NEAREST)
 
     feed_data = {tracking_model['imgs']: np.expand_dims(draw_imgs, 0),
-                 tracking_model['init_heat_map']: gt_heat_map[0],
+                 tracking_model['init_heat_map']: np.expand_dims(gt_heat_map, 0)[:, 0, :, :],
                  tracking_model['gt_heat_map']: np.expand_dims(gt_heat_map, 0),
                  tracking_model['anneal_threshold']: [1.0],
                  tracking_model['phase_train']: False}
@@ -87,33 +86,26 @@ def draw_sequence(idx, draw_img_name, data, tracking_model, sess, seq_length, he
         tracking_model['predict_heat_map'], feed_dict=feed_data)
     draw_pred_heat_map = np.squeeze(draw_pred_heat_map)
 
-    f1, axarr = plt.subplots(num_ex, 3, figsize=(10, num_row))
-    set_axis_off(axarr, num_ex, 3)
-
+    f1, axarr = plt.subplots(num_ex, 3, figsize=(10, num_ex))
     for ii in xrange(num_ex):
         for jj in xrange(3):
             if jj == 0:
                 x = draw_imgs[ii]
             elif jj == 1:
                 x = gt_heat_map[ii]
+            elif ii > 0:
+                x = draw_pred_heat_map[ii - 1]
             else:
-                x = draw_pred_heat_map[ii]
+                x = np.zeros(gt_heat_map[ii].shape)
             ax = axarr[ii, jj]
+            ax.set_axis_off()
             ax.imshow(x)
             ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(x.min(), x.max()),
                     color=(0, 0, 0), size=8)
-
     plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
-    plt.savefig(fname, dpi=150)
+    plt.savefig(draw_img_name, dpi=150)
     plt.close('all')
-
     pass
-
-    num_col = 2
-    num_row = seq_length / num_col
-    draw_data['gt_heat_map']
-    plot_frame_with_bbox(draw_img_name, draw_imgs[1:], draw_pred_bbox, draw_gt_box[
-                         1:], draw_IOU_score, num_row, num_col)
 
 
 def parse_args():
@@ -143,7 +135,7 @@ if __name__ == "__main__":
     feat_map_height = 16
     feat_map_width = 56
     img_channel = 3
-    num_train_seq = 1
+    num_train_seq = 16
 
     # read data
     train_video_seq = []
@@ -155,43 +147,33 @@ if __name__ == "__main__":
         num_seq = len(reader)
 
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
-            if idx_seq == 0:
+            if idx_seq < num_train_seq:
                 train_video_seq.append(seq_data)
-            elif idx_seq == 1:
+            else:
                 if seq_data['gt_bbox'].shape[0] > 0:
                     valid_video_seq.append(seq_data)
                     num_valid_seq += 1
-            else:
-                break
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-003'
     logs_folder = args.logs
     logs_folder = os.path.join(logs_folder, model_id)
 
-    logp_logger_IOU = TimeSeriesLogger(
+    iou_logger = TimeSeriesLogger(
         os.path.join(logs_folder, 'IOU_loss.csv'),
         labels=['IOU loss'],
         name='Traning IOU Loss of BBox',
         buffer_size=1)
 
-    logp_logger_CE = TimeSeriesLogger(
-        os.path.join(logs_folder, 'CE_loss.csv'),
-        labels=['CE loss'],
-        name='Traning CE Loss',
-        buffer_size=1)
+    draw_img_name = []
 
-    draw_img_name = [os.path.join(
-        logs_folder, 'draw_bbox_{}.png'.format(ii)) for ii in xrange(3)]
-    [log_register(draw_img_name[ii], 'image', 'box') for ii in xrange(3)]
-
-    for i in xrange(num_valid_seq):
+    for ii in xrange(num_valid_seq):
         draw_img_name.append(os.path.join(
-            logs_folder, 'draw_bbox_{}.png'.format(i)))
+            logs_folder, 'draw_bbox_{}.png'.format(ii)))
 
-        if not os.path.exists(draw_img_name[i]):
-            log_register(draw_img_name[i], 'image',
-                         'Tracking Bounding Box {}'.format(i))
+        if not os.path.exists(draw_img_name[ii]):
+            log_register(draw_img_name[ii], 'image',
+                         'Tracking Bounding Box {}'.format(ii))
 
     # setting model
     opt_tracking = {}
@@ -323,7 +305,7 @@ if __name__ == "__main__":
         for rr, name in zip(results, nodes_run):
             results_dict[name] = rr
 
-        logp_logger_IOU.add(step + 1, results_dict['IOU_loss'])
+        iou_logger.add(step + 1, results_dict['IOU_loss'])
 
         # display training statistics
         if (step + 1) % display_iter == 0:
@@ -341,24 +323,9 @@ if __name__ == "__main__":
 
         # draw bbox on selected data
         if (step + 1) % draw_iter == 0:
-            # log.error(batch_img.shape)
-            # pu.plot_thumbnails(
-            #     draw_img_name[0], batch_img, axis=1, max_items_per_row=4)
-            # log.error(results_dict['predict_heat_map'].shape)
-            # pu.plot_thumbnails(
-            #     draw_img_name[1], results_dict['predict_heat_map'], axis=1,
-            #     max_items_per_row=4)
-            # pu.plot_thumbnails(
-            #     draw_img_name[2], gt_heat_map, axis=1,
-            #     max_items_per_row=4)
-            # log.error(('GT max min', gt_heat_map.max(), gt_heat_map.min()))
-
-            for i in xrange(num_valid_seq):
-                draw_sequence(i, draw_img_name[
-                              i], valid_video_seq, tracking_model, sess, seq_length, height, width)
-
-            # for i in xrange(num_valid_seq):
-            #     ut.draw_sequence(i, draw_img_name[i], valid_video_seq, tracking_model, sess, seq_length, height, width)
+            for ii in xrange(num_valid_seq):
+                draw_sequence(ii, draw_img_name[ii], valid_video_seq,
+                              tracking_model, sess, seq_length, height, width)
             pass
 
         step += 1
