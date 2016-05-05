@@ -90,8 +90,8 @@ def build_tracking_model(opt, device='/cpu:0'):
         imgs = tf.placeholder(
             tf.float32, [None, conv_lstm_seq_len + 1, height, width,
                          num_channel], name='imgs')
-        init_heat_map = tf.placeholder(tf.float32, [None, None, None], 
-            name='init_heat_map')
+        init_heat_map = tf.placeholder(tf.float32, [None, None, None],
+                                       name='init_heat_map')
         gt_heat_map = tf.placeholder(
             tf.float32, [None, conv_lstm_seq_len + 1, None, None],
             name='gt_heat_map')
@@ -202,12 +202,13 @@ def build_tracking_model(opt, device='/cpu:0'):
                 [-1, -1, -1, conv_lstm_hidden_depth])
 
             # predict heat map
-            predict_heat_map[tt + 1] = tf.squeeze(post_cnn_model(
-                conv_lstm_hidden_feat[tt])[-1])
+            predict_heat_map[tt + 1] = tf.reshape(post_cnn_model(
+                conv_lstm_hidden_feat[tt])[-1], [-1, height, width])
 
         # compute IOU loss
         predict_heat_map = tf.concat(
             1, [tf.expand_dims(tmp, 1) for tmp in predict_heat_map[1:]])
+
         IOU_loss = - \
             compute_soft_IOU_score(predict_heat_map, gt_heat_map[:, 1:, :, :])
 
