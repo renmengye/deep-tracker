@@ -89,10 +89,12 @@ def build_tracking_model(opt, device='/cpu:0'):
         # input image [B, T+1, H, W, C]
         imgs = tf.placeholder(
             tf.float32, [None, conv_lstm_seq_len + 1, height, width,
-                         num_channel])
-        init_heat_map = tf.placeholder(tf.float32, [None, None, None])
+                         num_channel], name='imgs')
+        init_heat_map = tf.placeholder(tf.float32, [None, None, None], 
+            name='init_heat_map')
         gt_heat_map = tf.placeholder(
-            tf.float32, [None, conv_lstm_seq_len + 1, None, None])
+            tf.float32, [None, conv_lstm_seq_len + 1, None, None],
+            name='gt_heat_map')
 
         img_shape = tf.shape(imgs)
         batch_size = img_shape[0]
