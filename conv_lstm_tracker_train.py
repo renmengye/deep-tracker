@@ -135,7 +135,8 @@ if __name__ == "__main__":
     feat_map_height = 16
     feat_map_width = 56
     img_channel = 3
-    num_train_seq = 16
+    num_train_seq = 3
+    num_seq = 5
 
     # read data
     train_video_seq = []
@@ -144,9 +145,8 @@ if __name__ == "__main__":
     train_data_full = get_dataset(folder, 'train')
 
     with sh.ShardedFileReader(train_data_full) as reader:
-        num_seq = len(reader)
-
-        for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
+        for idx_seq in pb.get_iter(xrange(num_seq)):
+            seq_data = reader[idx_seq]
             if idx_seq < num_train_seq:
                 train_video_seq.append(seq_data)
             else:
