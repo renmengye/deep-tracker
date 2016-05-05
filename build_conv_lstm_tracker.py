@@ -203,7 +203,7 @@ def build_tracking_model(opt, device='/cpu:0'):
 
             # predict heat map
             predict_heat_map[tt + 1] = tf.reshape(post_cnn_model(
-                conv_lstm_hidden_feat[tt])[-1], [-1, height, width])
+                conv_lstm_hidden_feat[tt])[-1], [-1, conv_lstm_h, conv_lstm_w])
 
         # compute IOU loss
         predict_heat_map = tf.concat(
