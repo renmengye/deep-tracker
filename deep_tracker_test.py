@@ -140,9 +140,11 @@ if __name__ == "__main__":
                 batch_score[0] = gt_bbox[
                     idx_obj, idx_frame: idx_frame + seq_length + 1, 4]
 
+                print init_box 
+
                 if ii == 0:
                     init_rnn_state = np.concatenate([dt.inverse_transform_box(
-                        init_box, height, width), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])], 1)
+                        np.squeeze(init_box), height, width), np.zeros([batch_size, rnn_hidden_dim * 2 - 4])])
                 else:
                     init_rnn_state = last_rnn_state
 

@@ -135,10 +135,10 @@ if __name__ == "__main__":
         device = '/gpu:{}'.format(args.gpu)
 
     max_iter = 100000
-    batch_size = 2
+    batch_size = 10
     display_iter = 10
     draw_iter = 50
-    seq_length = 2     # sequence length for training
+    seq_length = 10     # sequence length for training
     snapshot_iter = 500
     anneal_iter = 1000
     height = 128
@@ -158,14 +158,12 @@ if __name__ == "__main__":
         num_seq = len(reader)
 
         for idx_seq, seq_data in enumerate(pb.get_iter(reader)):
-            if idx_seq == 0:
+            if idx_seq < num_train_seq:
                 train_video_seq.append(seq_data)
-            elif idx_seq == 1:
+            else:
                 if seq_data['gt_bbox'].shape[0] > 0:
                     valid_video_seq.append(seq_data)
                     num_valid_seq += 1
-            else:
-                break
 
     # logger for saving intermediate output
     model_id = 'deep-tracker-003'
