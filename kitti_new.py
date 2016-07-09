@@ -1,5 +1,7 @@
 from __future__ import division
 
+import cslab_environ
+
 import cv2
 import h5py
 import numpy as np
