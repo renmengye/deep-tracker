@@ -60,13 +60,13 @@ def get_dataset(folder, split):
         for seq_num in pb.get_iter(seq_list):
 
             seq_data = {}
+            frame_start = None
+            frame_end = None
 
             if split == 'training':
                 label_fname = os.path.join(label_folder, seq_num + '.txt')
                 obj_data = {}
                 idx_map = []
-                frame_start = None
-                frame_end = None
                 with open(label_fname) as label_f:
                     lines = label_f.readlines()
                     for ll in lines:
@@ -130,20 +130,30 @@ def get_dataset(folder, split):
                 image_list = os.listdir(seq_folder)
                 im_height = None
                 im_width = None
-                images = None
+                images = {}
                 for ii, fname in enumerate(image_list):
                     img_fname = os.path.join(seq_folder, fname)
                     log.info(img_fname)
                     frame_no = int(fname[: 6])
                     img = cv2.imread(img_fname)
+                    if frame_start is None:
+                        frame_start = frame_no
+                        frame_end = frame_no
+                    else:
+                        frame_start = min(frame_start, frame_no)
+                        frame_end = max(frame_start, frame_no)
                     if im_height is None:
                         im_height = img.shape[0]
                         im_width = img.shape[1]
-                        images = np.zeros([num_frames, im_height, im_width, 3],
-                                          dtype='uint8')
                     images[frame_no] = img
 
-                seq_data['images_{}'.format(camera)] = images
+                if num_frames is None:
+                    num_frames = frame_end - frame_start + 1
+                final_images = np.zeros([num_frames, im_height, im_width, 3])
+                for ii in images.iterkeys():
+                    final_images[ii] = images
+                    
+                seq_data['images_{}'.format(camera)] = final_images
 
             writer.write(seq_data)
 

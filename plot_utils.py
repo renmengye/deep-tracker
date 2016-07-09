@@ -60,6 +60,8 @@ def plot_thumbnails(fname, img, axis, max_items_per_row=9):
                 ax = axarr[row, col]
             else:
                 ax = axarr[row]
+            # BGR => RGB
+            x = x[:, :, [2, 1, 0]]
             ax.imshow(x)
             ax.text(0, -0.5, '[{:.2g}, {:.2g}]'.format(x.min(), x.max()),
                     color=(0, 0, 0), size=8)

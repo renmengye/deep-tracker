@@ -67,6 +67,26 @@ def plot_output(fname, x, y):
     plt.close('all')
 
 
+def plot_output(fname, filters):
+    num_ex = int(filters.shape[0]
+    num_items = 8
+    num_row, num_col, calc = pu.calc_row_col(
+        num_ex, num_items, max_items_per_row=9)
+
+    f1, axarr = plt.subplots(num_row, num_col, figsize=(10, num_row))
+    pu.set_axis_off(axarr, num_row, num_col)
+
+    for ii in xrange(num_ex):
+        for jj in xrange(num_items):
+            row, col = calc(ii, jj)
+            kk = ii * num_items + jj
+            axarr[row, col].imshow(filters[:, :, kk, :])
+
+    plt.tight_layout(pad=2.0, w_pad=0.0, h_pad=0.0)
+    plt.savefig(fname, dpi=150)
+    plt.close('all')
+
+
 def _get_batch_fn(dataset):
     def get_batch(idx):
         x_bat = dataset['images_0'][idx]
