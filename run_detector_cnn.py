@@ -167,7 +167,13 @@ if __name__ == '__main__':
             _outputs = ['y_out']
             _feed_dict = {m['x']: x}
             r = _run_model(sess, m, _outputs, _feed_dict)
-            plot_output(fname, x, r['y_out'])
+            y_out = r['y_out']
+            height = y_out.shape[1]
+            y_out = y_out[:, :int(height * 0.9), :, :]
+            y_out /= y_out.max(axis=1, keepdims=True).max(axis=2, keepdims=True)
+            height = x.shape[1]
+            x = x[:, :int(height * 0.9), :, :]
+            plot_output(fname, x, y_out)
 
             pass
 

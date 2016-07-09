@@ -71,7 +71,7 @@ def get_model(opt, device='/cpu:0'):
         feat_dim = cnn_channels[-1]
 
 ############################
-# Matching MLP definition
+# MLP definition
 ############################
         mlp_nlayers = len(mlp_dims)
         mlp_dims = [feat_dim] + mlp_dims
@@ -84,7 +84,7 @@ def get_model(opt, device='/cpu:0'):
 # Computation graph
 ############################
         f = cnn(x)
-        f = nn.avg_pool(f[-1], 3)
+        f = nn.avg_pool(f[-1], cnn_h)
         f = tf.reshape(f, [-1, feat_dim])
         y_out = mlp(f)[-1]
         y_out = tf.reshape(y_out, [-1])
