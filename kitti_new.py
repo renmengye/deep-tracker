@@ -44,6 +44,7 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
 
     def _read_annotations(self, vid_id):
         label_fname = os.path.join(self.label_folder, vid_id + '.txt')
+        target_types = set(['Van', 'Car', 'Truck'])
         obj_data = {}
         idx_map = []
         frame_start = None
