@@ -48,7 +48,6 @@ class TrackingDataAssembler(object):
                 obj_ids = self.get_obj_ids(vid_id)
                 for frm_id in self.get_frame_ids(vid_id):
                     frm_img = self.get_frame_img(vid_id, frm_id)
-                    obj_data = self.get_obj_data(vid_id, frm_id)
                     img_enc = self.encode(frm_img)
                     frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
                     self.save(frm_key, img_enc)
