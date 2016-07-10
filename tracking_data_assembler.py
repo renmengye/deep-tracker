@@ -1,3 +1,4 @@
+import h5py
 import tfplus
 
 class TrackingDataAssembler(object):
