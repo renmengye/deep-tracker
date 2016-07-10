@@ -55,15 +55,15 @@ class TrackingDataAssembler(object):
                     frm_img = self.get_frame_img(vid_id, frm_id)
                     img_enc = self.encode(frm_img)
                     frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
-                    self.save(frm_key, img_enc)
+                    self.save(frm_key, img_enc, h5f)
                 for obj_id in obj_ids:
                     obj_key = '{}/annotations/obj_{}'.format(vid_id, obj_id)
                     obj_data = self.get_obj_data(vid_id, obj_id)
                     if obj_data is not None:
                         frm_nonzero = obj_data['presence'].nonzero()[0]
                         self.save(obj_key + '/bbox',
-                                  obj_data['bbox'][frm_nonzero])
-                        self.save(obj_key + '/frame_indices', frm_nonzero)
+                                  obj_data['bbox'][frm_nonzero], h5f)
+                        self.save(obj_key + '/frame_indices', frm_nonzero, h5f)
                     pass
                 pass
             pass
