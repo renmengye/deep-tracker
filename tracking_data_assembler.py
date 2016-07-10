@@ -4,11 +4,12 @@ import numpy as np
 import tfplus
 import tfplus.utils.progress_bar as pb
 
+
 class TrackingDataAssembler(object):
     """
     video_id/video/frm_{frame_id}: PNG encoded image
     video_id/annotations/obj_{object_id}/bbox: {left, top, right, bottom} * num_frames
-    video_id/annotations/obj_{object_id}/presence: 1/0 * num_frames
+    video_id/annotations/obj_{object_id}/presence: frame indices
     """
 
     def __init__(self, output_fname):
@@ -56,12 +57,13 @@ class TrackingDataAssembler(object):
                     frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
                     self.save(frm_key, img_enc)
                 for obj_id in obj_ids:
-                    obj_key =  '{}/annotations/obj_{}'.format(vid_id, obj_id)
+                    obj_key = '{}/annotations/obj_{}'.format(vid_id, obj_id)
                     obj_data = self.get_obj_data(vid_id, obj_id)
                     if obj_data is not None:
-                        self.save(obj_key + '/bbox', obj_data['bbox'])
-                        self.save(obj_key + '/presence',
-                                  obj_data['presence'])
+                        frm_nonzero = obj_data['presence'].nonzero()[0]
+                        self.save(obj_key + '/bbox',
+                                  obj_data['bbox'][frm_nonzero])
+                        self.save(obj_key + '/frame_indices', frm_nonzero)
                     pass
                 pass
             pass
