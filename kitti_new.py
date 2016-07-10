@@ -105,9 +105,6 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
             idx_map.append(idx)
         idx_map = np.array(idx_map, dtype='uint8')
         frame_map = np.arange(frame_start, frame_end + 1)
-
-        print 'Index Map', idx_map
-        print 'Frame Map', frame_map
         self.anns[vid_id] = bbox
         pass
 
