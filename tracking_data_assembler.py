@@ -1,3 +1,5 @@
+import tfplus
+
 class TrackingDataAssembler(object):
     """
     video_id/frame_id/image: PNG encoded image
