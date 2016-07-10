@@ -1,13 +1,10 @@
 from __future__ import division
 
 import cslab_environ
-
 import cv2
-import h5py
 import numpy as np
 import os
 import tfplus
-import tfplus.utils.progress_bar as pb
 from tracking_data_assembler import TrackingDataAssembler
 
 
