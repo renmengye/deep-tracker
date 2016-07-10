@@ -12,10 +12,11 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
 
     def __init__(self, folder, output_fname=None, split='train'):
         self.folder = folder
+        self.split = split
         if output_fname is None:
             output_fname = os.path.join(folder, '{}.h5'.format(split))
 
-        if split == 'train' or 'valid':
+        if split == 'train' or 'valid' or 'train_all':
             self.left_folder = os.path.join(folder, 'training', 'image_02')
             self.label_folder = os.path.join(folder, 'training', 'label_02')
         elif split == 'test':
@@ -29,7 +30,17 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         pass
 
     def get_video_ids(self):
-        return filter(lambda x: x.startswith('0'), os.listdir(self.left_folder))
+        all_ids = filter(lambda x: x.startswith(
+            '0'), os.listdir(self.left_folder))
+        if self.split == 'train_all' or 'test':
+            return all_ids
+        elif self.split == 'train':
+            return all_ids[: 13]
+        elif self.split == 'valid':
+            return all_ids[13: ]
+        else:
+            raise Exception('Unknown split "{}"'.format(split))
+        pass
 
     def get_frame_ids(self, vid_id):
         vid_folder = os.path.join(self.left_folder, vid_id)
@@ -125,17 +136,20 @@ class KITTITrackingDataProvider(tfplus.data.DataProvider):
 
     def __init__(self):
         pass
+
+
+    def read
+
+    def get_batch(self, idx):
+        pass
     pass
 
 tfplus.data.data_provider.register('kitti_track', KITTITrackingDataProvider)
 
 
 if __name__ == '__main__':
-    assembler = KITTITrackingDataAssembler(
-        '/ais/gobi4/mren/data/kitti/tracking')
-    print assembler.get_video_ids()
-    print assembler.get_frame_ids('0001')
-    print assembler.get_obj_ids('0001')
-    print assembler.get_obj_data('0001', '0001')
-    assembler.assemble()
+    for split in ['train', 'valid', 'test']:
+        assembler = KITTITrackingDataAssembler(
+            '/ais/gobi4/mren/data/kitti/tracking', split=split)
+        assembler.assemble()
     pass
