@@ -84,35 +84,43 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
                     else:
                         obj_data[ins_no] = [raw_data]
 
-            for idx in obj_data.iterkeys():
-                new_idx = len(idx_map)
-                for dd in obj_data[idx]:
-                    new_frame = dd['frame_no'] - frame_start
-                    bbox[new_idx, new_frame, 4] = 1.0
-                    bbox[new_idx, new_frame, 0: 4] = dd['bbox']
-                idx_map.append(idx)
-            idx_map = np.array(idx_map, dtype='uint8')
-            frame_map = np.arange(frame_start, frame_end + 1)
+        num_ins = len(obj_data.keys())
+        num_frames = frame_end - frame_start + 1
+        bbox = np.zeros([num_ins, num_frames, 5], dtype='float32')
 
-            print 'Index Map', idx_map
-            print 'Frame Map', frame_map
+        for idx in obj_data.iterkeys():
+            new_idx = len(idx_map)
+            for dd in obj_data[idx]:
+                new_frame = dd['frame_no'] - frame_start
+                bbox[new_idx, new_frame, 4] = 1.0
+                bbox[new_idx, new_frame, 0: 4] = dd['bbox']
+            idx_map.append(idx)
+        idx_map = np.array(idx_map, dtype='uint8')
+        frame_map = np.arange(frame_start, frame_end + 1)
 
-            # seq_data['gt_bbox'] = bbox
-            # seq_data['idx_map'] = idx_map
-            # seq_data['frame_map'] = frame_map
+        print 'Index Map', idx_map
+        print 'Frame Map', frame_map
+        self.anns[vid_id] = bbox
         pass
-   
+
     def get_obj_ids(self, vid_id):
         if self.label_folder is None:
             return None
         if vid_id not in self.anns:
             self._read_annotations(vid_id)
-        raise Exception('Not implemented')
+        return ['{:04d}'.format(x) for x in xrange(self.anns[vid_id].shape[0])]
 
     def get_obj_data(self, vid_id, frm_id, obj_id):
         if self.label_folder is None:
             return None
-        raise Exception('Not implemented')
+
+        frm_idx = int(frm_id)
+        obj_idx = int(obj_id)
+        results = {
+            'bbox': self.anns[vid_id][obj_idx, frm_idx, :4],
+            'presence': self.anns[vid_id][obj_idx, frm_idx, 4]
+        }
+        return results
 
     pass
 
@@ -128,9 +136,9 @@ tfplus.data.data_provider.register('kitti_track', KITTITrackingDataProvider)
 
 if __name__ == '__main__':
     assembler = KITTITrackingDataAssembler(
-            '/ais/gobi4/mren/data/kitti/tracking')
+        '/ais/gobi4/mren/data/kitti/tracking')
     print assembler.get_video_ids()
     print assembler.get_frame_ids('0001')
     print assembler.get_obj_ids('0001')
-    print assembler.get_obj_data('0001', '000088')
+    print assembler.get_obj_data('0001', '000000', '0001')
     pass
