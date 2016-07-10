@@ -53,7 +53,7 @@ class TrackingDataAssembler(object):
                     frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
                     self.save(frm_key, img_enc)
                 for obj_id in obj_ids:
-                    obj_key =  '{}/annotations/obj_{}'.format(obj_id)
+                    obj_key =  '{}/annotations/obj_{}'.format(vid_id, obj_id)
                     obj_data = self.get_obj_data(vid_id, obj_id)
                     if obj_data is not None:
                         self.save(obj_key + '/bbox', obj_data['bbox'])
