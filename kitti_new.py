@@ -110,15 +110,14 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
             self._read_annotations(vid_id)
         return ['{:04d}'.format(x) for x in xrange(self.anns[vid_id].shape[0])]
 
-    def get_obj_data(self, vid_id, frm_id, obj_id):
+    def get_obj_data(self, vid_id, obj_id):
         if self.label_folder is None:
             return None
 
-        frm_idx = int(frm_id)
         obj_idx = int(obj_id)
         results = {
-            'bbox': self.anns[vid_id][obj_idx, frm_idx, :4],
-            'presence': self.anns[vid_id][obj_idx, frm_idx, 4]
+            'bbox': self.anns[vid_id][obj_idx, :, :4],
+            'presence': self.anns[vid_id][obj_idx, :, 4]
         }
         return results
 
@@ -141,4 +140,5 @@ if __name__ == '__main__':
     print assembler.get_frame_ids('0001')
     print assembler.get_obj_ids('0001')
     print assembler.get_obj_data('0001', '000000', '0001')
+    assembler.assemble()
     pass

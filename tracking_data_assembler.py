@@ -2,9 +2,9 @@ import tfplus
 
 class TrackingDataAssembler(object):
     """
-    video_id/frame_id/image: PNG encoded image
-    video_id/frame_id/object_id/bbox: (left, top, right, bottom)
-    video_id/frame_id/object_id/presence: 1/0
+    video_id/video/frm_{frame_id}: PNG encoded image
+    video_id/annotations/obj_{object_id}/bbox: {left, top, right, bottom} * num_frames
+    video_id/annotations/obj_{object_id}/presence: 1/0 * num_frames
     """
 
     def __init__(self, output_fname):
@@ -50,16 +50,15 @@ class TrackingDataAssembler(object):
                     frm_img = self.get_frame_img(vid_id, frm_id)
                     obj_data = self.get_obj_data(vid_id, frm_id)
                     img_enc = self.encode(frm_img)
-                    key = '{}/{}'.format(vid_id, frm_id)
-                    self.save(key + '/image', img_enc)
-                    for obj_id in obj_ids:
-                        obj_key = key + '/{}'.format(obj_id)
-                        obj_data = self.get_obj_data(vid_id, frm_id, obj_id)
-                        if obj_data is not None:
-                            self.save(obj_key + '/bbox', obj_data['bbox'])
-                            self.save(obj_key + '/presence',
-                                      obj_data['presence'])
-                        pass
+                    frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
+                    self.save(frm_key, img_enc)
+                for obj_id in obj_ids:
+                    obj_key =  '{}/annotations/obj_{}'.format(obj_id)
+                    obj_data = self.get_obj_data(vid_id, obj_id)
+                    if obj_data is not None:
+                        self.save(obj_key + '/bbox', obj_data['bbox'])
+                        self.save(obj_key + '/presence',
+                                  obj_data['presence'])
                     pass
                 pass
             pass
