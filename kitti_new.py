@@ -26,6 +26,7 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
             self.label_folder = None
         else:
             raise Exception('Unknown split "{}"'.format(split))
+        self.anns = {}
 
         super(KITTITrackingDataAssembler, self).__init__(output_fname)
         pass
@@ -42,25 +43,12 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         return cv2.imread(fname)
 
     def _read_annotations(self, vid_id):
-        label_fname = os.path.join(label_folder, vid_id + '.txt')
+        label_fname = os.path.join(self.label_folder, vid_id + '.txt')
         obj_data = {}
         idx_map = []
         frame_start = None
         frame_end = None
 
-                for idx in obj_data.iterkeys():
-                    new_idx = len(idx_map)
-                    for dd in obj_data[idx]:
-                        new_frame = dd['frame_no'] - frame_start
-                        bbox[new_idx, new_frame, 4] = 1.0
-                        bbox[new_idx, new_frame, 0: 4] = dd['bbox']
-                    idx_map.append(idx)
-                idx_map = np.array(idx_map, dtype='uint8')
-                frame_map = np.arange(frame_start, frame_end + 1)
-
-                seq_data['gt_bbox'] = bbox
-                seq_data['idx_map'] = idx_map
-                seq_data['frame_map'] = frame_map
         with open(label_fname) as label_f:
             lines = label_f.readlines()
             for ll in lines:
