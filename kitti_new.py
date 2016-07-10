@@ -137,9 +137,6 @@ class KITTITrackingDataProvider(tfplus.data.DataProvider):
     def __init__(self):
         pass
 
-
-    def read
-
     def get_batch(self, idx):
         pass
     pass
