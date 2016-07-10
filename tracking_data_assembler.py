@@ -36,7 +36,7 @@ class TrackingDataAssembler(object):
     def get_obj_ids(self, vid_id):
         raise Exception('Not implemented')
 
-    def get_obj_data(self, vid_id, frm_id, obj_id):
+    def get_obj_data(self, vid_id, obj_id):
         raise Exception('Not implemented')
 
     def assemble(self):
