@@ -139,6 +139,6 @@ if __name__ == '__main__':
     print assembler.get_video_ids()
     print assembler.get_frame_ids('0001')
     print assembler.get_obj_ids('0001')
-    print assembler.get_obj_data('0001', '000000', '0001')
+    print assembler.get_obj_data('0001', '0001')
     assembler.assemble()
     pass
