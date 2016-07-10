@@ -42,6 +42,7 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         return cv2.imread(fname)
 
     def _read_annotations(self, vid_id):
+        target_types = set(['Van', 'Car', 'Truck'])
         label_fname = os.path.join(label_folder, vid_id + '.txt')
         obj_data = {}
         idx_map = []
