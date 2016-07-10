@@ -42,8 +42,75 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         return cv2.imread(fname)
 
     def _read_annotations(self, vid_id):
-
         label_fname = os.path.join(label_folder, vid_id + '.txt')
+        obj_data = {}
+        idx_map = []
+        frame_start = None
+        frame_end = None
+
+                for idx in obj_data.iterkeys():
+                    new_idx = len(idx_map)
+                    for dd in obj_data[idx]:
+                        new_frame = dd['frame_no'] - frame_start
+                        bbox[new_idx, new_frame, 4] = 1.0
+                        bbox[new_idx, new_frame, 0: 4] = dd['bbox']
+                    idx_map.append(idx)
+                idx_map = np.array(idx_map, dtype='uint8')
+                frame_map = np.arange(frame_start, frame_end + 1)
+
+                seq_data['gt_bbox'] = bbox
+                seq_data['idx_map'] = idx_map
+                seq_data['frame_map'] = frame_map
+        with open(label_fname) as label_f:
+            lines = label_f.readlines()
+            for ll in lines:
+                parts = ll.split(' ')
+                frame_no = int(parts[0])
+                ins_no = int(parts[1])
+                typ = parts[2]
+                truncated = int(parts[3])
+                occluded = int(parts[4])
+                bleft = float(parts[6])
+                btop = float(parts[7])
+                bright = float(parts[8])
+                bbot = float(parts[9])
+                if frame_start is None:
+                    frame_start = frame_no
+                    frame_end = frame_no
+                else:
+                    frame_start = min(frame_start, frame_no)
+                    frame_end = max(frame_start, frame_no)
+
+                raw_data = {
+                    'frame_no': frame_no,
+                    'ins_no': ins_no,
+                    'typ': typ,
+                    'truncated': truncated,
+                    'occluded': occluded,
+                    'bbox': (bleft, btop, bright, bbot)
+                }
+                if ins_no != -1 and typ in target_types:
+                    if ins_no in obj_data:
+                        obj_data[ins_no].append(raw_data)
+                    else:
+                        obj_data[ins_no] = [raw_data]
+
+            for idx in obj_data.iterkeys():
+                new_idx = len(idx_map)
+                for dd in obj_data[idx]:
+                    new_frame = dd['frame_no'] - frame_start
+                    bbox[new_idx, new_frame, 4] = 1.0
+                    bbox[new_idx, new_frame, 0: 4] = dd['bbox']
+                idx_map.append(idx)
+            idx_map = np.array(idx_map, dtype='uint8')
+            frame_map = np.arange(frame_start, frame_end + 1)
+
+            print 'Index Map', idx_map
+            print 'Frame Map', frame_map
+
+            # seq_data['gt_bbox'] = bbox
+            # seq_data['idx_map'] = idx_map
+            # seq_data['frame_map'] = frame_map
         pass
    
     def get_obj_ids(self, vid_id):
