@@ -32,7 +32,7 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
     def get_video_ids(self):
         all_ids = filter(lambda x: x.startswith(
             '0'), os.listdir(self.left_folder))
-        if self.split == 'train_all' or 'test':
+        if self.split == 'train_all' or self.split == 'test':
             return all_ids
         elif self.split == 'train':
             return all_ids[: 13]
@@ -142,7 +142,8 @@ tfplus.data.data_provider.register('kitti_track', KITTITrackingDataProvider)
 
 
 if __name__ == '__main__':
-    for split in ['train', 'valid', 'test']:
+    for split in ['train', 'valid']:
+    # for split in ['train', 'valid', 'test']:
         assembler = KITTITrackingDataAssembler(
             '/ais/gobi4/mren/data/kitti/tracking', split=split)
         assembler.assemble()

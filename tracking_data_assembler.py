@@ -18,6 +18,7 @@ class TrackingDataAssembler(object):
         self.log.info('Output h5 dataset: {}'.format(self.output_fname))
         self.log.info('Reading video IDs')
         self.vid_ids = self.get_video_ids()
+        self.log.info('Video IDs: {}'.format(self.vid_ids))
         pass
 
     def save(self, key, data, group):
