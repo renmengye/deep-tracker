@@ -1,17 +1,38 @@
 import tfplus
 import tensorflow as tf
 
+tfplus.cmd_args.add('ct:inp_depth', 'int', 3)
+tfplus.cmd_args.add('ct:timespan', 'int' 25)
+tfplus.cmd_args.add('ct:weight_decay', 'float', 5e-5)
+tfplus.cmd_args.add('ct:res_net_layers', 'list<int>', [3, 4, 6, 3])
+tfplus.cmd_args.add('ct:res_net_strides', 'list<int>', [1, 2, 2, 2])
+tfplus.cmd_args.add('ct:res_net_channels', 'list<int>', [32, 32, 64, 128, 256])
+tfplus.cmd_args.add('ct:full_res', 'bool', False)
+tfplus.cmd_args.add('ct:bottleneck', 'bool', False)
+tfplus.cmd_args.add('ct:shortcut', 'str', 'identity')
+
 
 class ConvLSTMTrackerModel(tfplus.nn.Model):
     """A model for ConvLSTM tracking."""
 
+    def __init__(self):
+        self.register_var('ct:inp_depth')
+        self.register_var('ct:timespan')
+        self.register_var('ct:weight_decay')
+        self.register_var('ct:res_net_layers')
+        self.register_var('ct:res_net_strides')
+        self.register_var('ct:full_res')
+        pass
+
+    def init_default_options(self):
+        pass
+
     def build_input(self):
-        inp_height = self.get_option('ct:inp_height')
-        inp_width = self.get_option('ct:inp_width')
+        self.init_default_options()
         inp_depth = self.get_option('ct:inp_depth')
         timespan = self.get_option('ct:timespan')
         x = self.add_input_var(
-            'x', [None, timespan, inp_height, inp_width, inp_depth])
+            'x', [None, timespan, None, None, inp_depth])
         bbox_gt = self.add_input_var(
             'bbox_gt', [None, timespan, 4])
         phase_train = self.add_input_var('phase_train', None, 'bool')
@@ -28,13 +49,16 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         res_net_layers = self.get_option('ct:res_net_layers')
         res_net_channels = self.get_option('ct:res_net_channels')
         res_net_bottleneck = self.get_option('ct:res_net_bottleneck')
+        res_net_shortcut = self.get_option('ct:res_net_shortcut')
         res_net_strides = self.get_option('ct:res_net_strides')
 
-        self.pre_cnn = tfplus.nn.CNN([3], [inp_depth, channels[0]], [1],
-                                     [None], [True], wd=wd, scope='pre_cnn')
+        self.conv1 = Conv2DW(
+            f=7, ch_in=inp_depth * 2, ch_out=channels[0], stride=2, wd=wd,
+            scope='conv', bias=False)
 
         self.res_net = tfplus.nn.ResNet(layers=res_net_layers,
                                         bottleneck=res_net_bottleneck,
+                                        shortcut=res_net_shortcut,
                                         channels=res_net_channels,
                                         strides=res_net_strides,
                                         wd=wd)
@@ -56,13 +80,18 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
-
+        inp_height = x_shape[1]
+        inp_width = x_shape[2]
+        res_net_strides = self.get_option('ct:res_net_strides')
+        stride_prod = np.prod(res_net_strides)
         results = {}
 
         timespan = self.get_option('ct:timespan')
 
         conv_lstm_state = tf.zeros(
-            [inp_height, inp_width, 2 * conv_lstm_hid_depth])
+            tf.pack([inp_height / stride_prod,
+                     inp_width / stride_prod,
+                     2 * conv_lstm_hid_depth]))
 
         bbox_out = [None] * timespan
 
@@ -96,14 +125,12 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
             joint_inp = tf.concat(3, [img_prev, img_now, bbox_prev_img])
 
-            # Could really be fully convolutional.
-            # So we don't have to do pooling here.
-            conv_feat = self.res_net(
-                {'input': self.pre_cnn({
-                    'input': joint_inp,
-                    'phase_train': phase_train}),
-                    'phase_train': phase_train})
+            h = self.conv1(joint_inp)
+            self.bn1 = BatchNorm(h.get_shape()[-1])
+            h = tf.nn.relu(h)
+            h = MaxPool(3, stride=2)(h)
 
+            conv_feat = self.res_net({'input': h, 'phase_train': phase_train})
             conv_lstm_state = self.conv_lstm(
                 {'input': conv_feat, 'state': conv_lstm_state})['state']
 
