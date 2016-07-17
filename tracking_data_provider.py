@@ -1,6 +1,8 @@
 import cslab_environ
 
+import cv2
 import h5py
+import numpy as np
 import tfplus
 
 tfplus.cmd_args.add('td:window_size', 'int', 20)
@@ -19,6 +21,7 @@ class TrackingDataProvider(tfplus.data.DataProvider):
         self.register_option('td:window_size')
         self.register_option('td:inp_height')
         self.register_option('td:inp_width')
+        self.mode = 'train_dense'
         pass
 
     @property
@@ -26,8 +29,10 @@ class TrackingDataProvider(tfplus.data.DataProvider):
         return self._filename
 
     @property
-    def window(self):
-        return self._window
+    def windows(self):
+        if self._windows is None:
+            self._windows = self.compute_windows()
+        return self._windows
 
     @property
     def split(self):
@@ -38,7 +43,7 @@ class TrackingDataProvider(tfplus.data.DataProvider):
             self._windows = self.compute_windows()
         return len(self._windows)
 
-    def compute_windows(self, mode='train_dense'):
+    def compute_windows(self):
         """
         Extracts usable windows from the video sequence.
 
@@ -51,9 +56,9 @@ class TrackingDataProvider(tfplus.data.DataProvider):
             windows: list of window metadata.
                 "video_id", "object_id", "frame_start"
         """
-        if mode != 'train_dense':
+        if self.mode != 'train_dense':
             raise Exception('Mode "{}" not supported'.format(mode))
-        window_size = self.get_option('window_size')
+        window_size = self.get_option('td:window_size')
         windows = []
         with h5py.File(self.filename, 'r') as f:
             video_ids = f.keys()
@@ -88,7 +93,7 @@ class TrackingDataProvider(tfplus.data.DataProvider):
             pass
         return windows
 
-    def get_batch(self, idx, **kwargs):
+    def get_batch_idx(self, idx, **kwargs):
         # Remember that the images are not resized to uniform size.
         # Remember to normalize the bounding box
         # coordinates.
@@ -96,30 +101,48 @@ class TrackingDataProvider(tfplus.data.DataProvider):
         window_size = self.get_option('td:window_size')
         inp_height = self.get_option('td:inp_height')
         inp_width = self.get_option('td:inp_width')
-        images = np.zeros([num_ex, window_size, inp_height, inp_width],
+        images = np.zeros([num_ex, window_size, inp_height, inp_width, 3],
                           dtype='float32')
         bbox = np.zeros([num_ex, window_size, 4], dtype='float32')
         presence = np.zeros([num_ex, window_size], dtype='float32')
+        self.log.info(self.filename)
+
         with h5py.File(self.filename, 'r') as f:
-            for ii in idx:
-                window = self.window[ii]
+            for kk, ii in enumerate(idx):
+                window = self.windows[ii]
                 vid = window['video_id']
                 oid = window['object_id']
                 frm_start = window['frame_start']
                 vid_group = f[vid]
-                obj_group = vid_group[oid]
-                val_frm_idx = obj_group['frame_indices']
+                obj_group = vid_group['annotations'][oid]
+                val_frm_idx = obj_group['frame_indices'][:]
                 num_frm = len(vid_group['video'].keys())
                 frm_end = min(frm_start + window_size, num_frm)
+                # print frm_start, frm_end
+                count = 0
                 for jj in xrange(frm_start, frm_end):
-                    _img = vid_group['video/frm_{:06d}'.format(jj)]
+                    _img = vid_group['video/frm_{:06d}'.format(jj)][:]
+                    _img = cv2.imdecode(_img, -1)
+                    orig_height = _img.shape[0]
+                    orig_width = _img.shape[1]
                     _img = cv2.resize(_img, (inp_width, inp_height),
                                       interpolation=cv2.INTER_CUBIC)
-                    images[ii, jj, :, :] = _img
+                    images[kk, jj - frm_start, :, :] = _img
+                    val_frm = set(val_frm_idx).intersection(
+                        set(range(frm_start, frm_end)))
+                    if jj in val_frm_idx:
+                        presence[kk, jj - frm_start] = 1.0
+                        bbox_ = obj_group['bbox'][count]
+                        # Resize boxes.
+                        bbox_[0] = bbox_[0] / orig_width * inp_width
+                        bbox_[1] = bbox_[1] / orig_height * inp_height
+                        bbox_[2] = bbox_[2] / orig_width * inp_width
+                        bbox_[3] = bbox_[3] / orig_height * inp_height
+                        bbox[kk, jj - frm_start] = bbox_
+                        count += 1
                     pass
                 pass
             pass
-
         results = {
             'x': images / 255.0,
             'bbox_gt': bbox,
