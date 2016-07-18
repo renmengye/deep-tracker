@@ -222,7 +222,7 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
             if tt == 1:
                 bbox_out_dense[0] = bbox_gt_prev_lo
             bbox_out_prev = bbox_out_dense[tt - 1]
-            
+
             switch = gt_prob_switch[:, tt, :, :] * phase_train_f
             bbox_prev = bbox_gt_prev_lo * switch + bbox_out_prev * (1 - switch)
             bbox_prev = tf.expand_dims(bbox_prev, 3)
@@ -251,9 +251,9 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
             idx_map_lo_res, bbox_gt[:, tt, :2] / stride_prod,
             bbox_gt[:, tt, 2:] / stride_prod), 3)
         bbox_out_dense = tf.concat(
-            1, [tf.expand_dims(xx, 1) for xx in bbox_out_dense)
+            1, [tf.expand_dims(xx, 1) for xx in bbox_out_dense])
         bbox_gt_dense = tf.concat(
-            1, [tf.expand_dims(xx, 1) for xx in bbox_gt_dense)
+            1, [tf.expand_dims(xx, 1) for xx in bbox_gt_dense])
         self.register_var('bbox_out_dense', bbox_out_dense)
         self.register_var('bbox_gt_dense', bbox_gt_dense)
         return {
