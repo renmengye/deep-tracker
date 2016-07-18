@@ -5,12 +5,12 @@ import tfplus
 import tensorflow as tf
 
 tfplus.cmd_args.add('ct:inp_depth', 'int', 3)
-tfplus.cmd_args.add('ct:timespan', 'int', 3)
+tfplus.cmd_args.add('ct:timespan', 'int', 20)
 tfplus.cmd_args.add('ct:weight_decay', 'float', 5e-5)
 tfplus.cmd_args.add('ct:res_net_layers', 'list<int>', [3, 3, 3, 3])
 tfplus.cmd_args.add('ct:res_net_strides', 'list<int>', [1, 2, 2, 2])
 tfplus.cmd_args.add('ct:res_net_channels', 'list<int>', [16, 16, 32, 64, 96])
-tfplus.cmd_args.add('ct:conv_lstm_hid_depth', 'int', 256)
+tfplus.cmd_args.add('ct:conv_lstm_hid_depth', 'int', 16)
 tfplus.cmd_args.add('ct:conv_lstm_filter_size', 'int', 3)
 tfplus.cmd_args.add('ct:res_net_bottleneck', 'bool', False)
 tfplus.cmd_args.add('ct:res_net_shortcut', 'str', 'identity')
@@ -61,8 +61,10 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         bbox_gt = self.add_input_var(
             'bbox_gt', [None, timespan, 4])
         phase_train = self.add_input_var('phase_train', None, 'bool')
+        s_gt = self.add_input_var('s_gt', [None, timespan])
         results = {
             'x': x,
+            's_gt': s_gt,
             'bbox_gt': bbox_gt,
             'phase_train': phase_train
         }
@@ -125,9 +127,7 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         w = tf.slice(s, ndims - 1, [1])
         idx_y += tf.reshape(tf.to_float(tf.range(h[0])), h_shape)
         idx_x += tf.reshape(tf.to_float(tf.range(w[0])), w_shape)
-        # idx = tf.concat(ndims[0], [idx_y, idx_x])
         idx = tf.concat(ndims[0], [idx_x, idx_y])
-        # self.log.fatal(idx.get_shape())
         return idx
 
     def get_filled_box_idx(self, idx, left_top, right_bot):
@@ -158,8 +158,11 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
         x_shape = tf.shape(x)
         num_ex = x_shape[0]
+        self.register_var('num_ex', num_ex)
         inp_height = x_shape[2]
+        self.register_var('inp_height', inp_height)
         inp_width = x_shape[3]
+        self.register_var('inp_width', inp_width)
         res_net_strides = self.get_option('ct:res_net_strides')
         stride_prod = np.prod(res_net_strides) * 4
         results = {}
@@ -167,9 +170,12 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         timespan = self.get_option('ct:timespan')
         conv_lstm_hid_depth = self.get_option('ct:conv_lstm_hid_depth')
 
+        conv_lstm_height = inp_height / stride_prod
+        self.register_var('conv_lstm_height', conv_lstm_height)
+        conv_lstm_width = inp_width / stride_prod
+        self.register_var('conv_lstm_width', conv_lstm_width)
         conv_lstm_state = tf.zeros(
-            tf.pack([num_ex, inp_height / stride_prod,
-                     inp_width / stride_prod,
+            tf.pack([num_ex, conv_lstm_height, conv_lstm_width,
                      2 * conv_lstm_hid_depth]))
 
         switch_offset = self.get_option('ct:switch_offset')
@@ -182,8 +188,12 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         gt_prob_switch = tf.to_float(tf.random_uniform(
             tf.pack([num_ex, timespan, 1, 1]), 0, 1.0) <= gt_switch)
         phase_train_f = tf.to_float(phase_train)
-        idx_map = self.get_idx_map(tf.pack([num_ex, inp_height, inp_width]))
-        self.register_var('idx_map', idx_map)
+
+        idx_map_hi_res = self.get_idx_map(
+            tf.pack([num_ex, inp_height, inp_width]))
+        idx_map_lo_res = self.get_idx_map(
+            tf.pack([num_ex, conv_lstm_height, conv_lstm_width]))
+        # self.register_var('idx_map', idx_map)
         bbox_gt_dense = [None] * timespan
         bbox_out_dense = [None] * timespan
 
@@ -192,24 +202,30 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
             img_prev = x[:, tt - 1, :, :, :]
             img_now = x[:, tt, :, :, :]
             # bbox_gt_prev = x[:, tt, :, :, :]
-            bbox_gt_prev = bbox_gt[:, tt - 1, :]
+            bbox_gt_prev_coord = bbox_gt[:, tt - 1, :]
             # Paint the previous bounding box into a dense image.
-            bbox_gt_prev = self.get_filled_box_idx(
-                idx_map, bbox_gt_prev[:, :2], bbox_gt_prev[:, 2:])
+            bbox_gt_prev_hi = self.get_filled_box_idx(
+                idx_map_hi_res, bbox_gt_prev_coord[:, :2],
+                bbox_gt_prev_coord[:, 2:])
+            # [B, H, W] => [B, H, W, 1]
+            bbox_gt_prev_hi = tf.expand_dims(bbox_gt_prev_hi, 3)
+            bbox_gt_prev_lo = self.get_filled_box_idx(
+                idx_map_lo_res, bbox_gt_prev_coord[:, :2] / stride_prod,
+                bbox_gt_prev_coord[:, 2:] / stride_prod)
+            # [B, H, W] => [B, H, W, 1]
+            bbox_gt_prev_lo = tf.expand_dims(bbox_gt_prev_lo, 3)
             # Store it for later.
-            bbox_gt_dense[tt - 1] = bbox_gt_prev
+            bbox_gt_dense[tt - 1] = bbox_gt_prev_lo
 
             if tt > 1:
                 bbox_out_prev = bbox_out_dense[tt - 1]
             else:
-                bbox_out_prev = bbox_gt_prev
+                bbox_out_prev = bbox_gt_prev_lo
 
-            bbox_prev = bbox_gt_prev * phase_train_f * \
-                gt_prob_switch[:, tt, :, :] + \
-                bbox_out_prev * (1 - phase_train_f *
-                                 gt_prob_switch[:, tt, :, :])
+            switch = gt_prob_switch[:, tt, :, :] * phase_train_f
+            bbox_prev = bbox_gt_prev_lo * switch + bbox_out_prev * (1 - switch)
             bbox_prev = tf.expand_dims(bbox_prev, 3)
-            joint_inp = tf.concat(3, [img_prev, img_now, bbox_prev])
+            joint_inp = tf.concat(3, [img_prev, img_now, bbox_gt_prev_hi])
 
             h = self.conv1(joint_inp)
             self.bn1 = tfplus.nn.BatchNorm(h.get_shape()[-1])
@@ -229,29 +245,32 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
             # Need to regress score? Not for now maybe...
 
-        bbox_gt_dense[tt] = self.get_filled_box_idx(
-            idx_map, bbox_gt[:, tt, :2], bbox_gt[:, tt, 2:])
+        # [B, H, W] => [B, H, W, 1]
+        bbox_gt_dense[tt] = tf.expand_dims(self.get_filled_box_idx(
+            idx_map_lo_res, bbox_gt[:, tt, :2] / stride_prod,
+            bbox_gt[:, tt, 2:] / stride_prod), 3)
         return {
             'bbox_out_dense': bbox_out_dense,
             'bbox_gt_dense': bbox_gt_dense
         }
 
     def build_loss(self, inp, output):
+        s_gt = inp['s_gt'][:, 1:]
         bbox_out_dense = tf.concat(
             1, [tf.expand_dims(xx, 1) for xx in output['bbox_out_dense'][1:]])
         bbox_gt_dense = tf.concat(
             1, [tf.expand_dims(xx, 1) for xx in output['bbox_gt_dense'][1:]])
         ce = tfplus.nn.CE()({'y_out': bbox_out_dense, 'y_gt': bbox_gt_dense})
-        x = inp['x']
-        x_shape = tf.shape(x)
-        num_ex_f = tf.to_float(x_shape[0])
-        inp_height_f = tf.to_float(x_shape[1])
-        inp_width_f = tf.to_float(x_shape[2])
+        num_ex_f = tf.to_float(self.get_var('num_ex'))
+        conv_lstm_height_f = tf.to_float(self.get_var('conv_lstm_height'))
+        conv_lstm_width_f = tf.to_float(self.get_var('conv_lstm_width'))
         timespan = self.get_option('ct:timespan')
 
         # Need to mask the loss with s_gt.
-        ce = tf.reduce_sum(ce) / num_ex_f / timespan / \
-            inp_height_f / inp_width_f
+        # [B, T, H, W, 1] = > [B, T]
+        ce = tf.reduce_sum(ce, [2, 3, 4])
+        ce = tf.reduce_sum(ce * s_gt) / num_ex_f / timespan / \
+            conv_lstm_height_f / conv_lstm_width_f
         self.add_loss(ce)
         loss = self.get_loss()
         self.register_var('loss', loss)
@@ -277,10 +296,11 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 tfplus.nn.model.register('conv_lstm_tracker', ConvLSTMTrackerModel)
 
 if __name__ == '__main__':
-    m = tfplus.nn.model.create_from_main('conv_lstm_tracker').build_all()
-    with tf.Session() as sess:
-        idx = sess.run(m.get_var('idx_map'), feed_dict={
-            m.get_var('x'): np.zeros([10, 3, 128, 448, 3]),
-            m.get_var('phase_train'): False})
-        print idx
-        print idx.shape
+    # m = tfplus.nn.model.create_from_main('conv_lstm_tracker').build_all()
+    # with tf.Session() as sess:
+    #     idx = sess.run(m.get_var('idx_map'), feed_dict={
+    #         m.get_var('x'): np.zeros([10, 3, 128, 448, 3]),
+    #         m.get_var('phase_train'): False})
+    #     print idx
+    #     print idx.shape
+    pass

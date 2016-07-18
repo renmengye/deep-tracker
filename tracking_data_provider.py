@@ -97,6 +97,10 @@ class TrackingDataProvider(tfplus.data.DataProvider):
         # Remember that the images are not resized to uniform size.
         # Remember to normalize the bounding box
         # coordinates.
+        if 'variables' in kwargs:
+            variables = kwargs['variables']
+        else:
+            variables = set(['x', 'bbox_gt', 's_gt'])
         num_ex = len(idx)
         window_size = self.get_option('td:window_size')
         inp_height = self.get_option('td:inp_height')
@@ -105,7 +109,6 @@ class TrackingDataProvider(tfplus.data.DataProvider):
                           dtype='float32')
         bbox = np.zeros([num_ex, window_size, 4], dtype='float32')
         presence = np.zeros([num_ex, window_size], dtype='float32')
-        self.log.info(self.filename)
 
         with h5py.File(self.filename, 'r') as f:
             for kk, ii in enumerate(idx):
@@ -143,11 +146,14 @@ class TrackingDataProvider(tfplus.data.DataProvider):
                     pass
                 pass
             pass
-        results = {
-            'x': images / 255.0,
-            'bbox_gt': bbox,
-            's_gt': presence
-        }
+
+        results = {}
+        if 'x' in variables:
+            results['x'] = images / 255.0
+        if 'bbox_gt' in variables:
+            results['bbox_gt'] = bbox
+        if 's_gt' in variables:
+            results['s_gt'] = presence  
         return results
 
 if __name__ == '__main__':
