@@ -58,6 +58,8 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         timespan = self.get_option('ct:timespan')
         x = self.add_input_var(
             'x', [None, timespan, None, None, inp_depth])
+        x_id = tf.identity(x)
+        self.register_var('x_id', x_id)
         bbox_gt = self.add_input_var(
             'bbox_gt', [None, timespan, 4])
         phase_train = self.add_input_var('phase_train', None, 'bool')
@@ -217,11 +219,10 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
             # Store it for later.
             bbox_gt_dense[tt - 1] = bbox_gt_prev_lo
 
-            if tt > 1:
-                bbox_out_prev = bbox_out_dense[tt - 1]
-            else:
-                bbox_out_prev = bbox_gt_prev_lo
-
+            if tt == 1:
+                bbox_out_dense[0] = bbox_gt_prev_lo
+            bbox_out_prev = bbox_out_dense[tt - 1]
+            
             switch = gt_prob_switch[:, tt, :, :] * phase_train_f
             bbox_prev = bbox_gt_prev_lo * switch + bbox_out_prev * (1 - switch)
             bbox_prev = tf.expand_dims(bbox_prev, 3)
@@ -249,6 +250,12 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         bbox_gt_dense[tt] = tf.expand_dims(self.get_filled_box_idx(
             idx_map_lo_res, bbox_gt[:, tt, :2] / stride_prod,
             bbox_gt[:, tt, 2:] / stride_prod), 3)
+        bbox_out_dense = tf.concat(
+            1, [tf.expand_dims(xx, 1) for xx in bbox_out_dense)
+        bbox_gt_dense = tf.concat(
+            1, [tf.expand_dims(xx, 1) for xx in bbox_gt_dense)
+        self.register_var('bbox_out_dense', bbox_out_dense)
+        self.register_var('bbox_gt_dense', bbox_gt_dense)
         return {
             'bbox_out_dense': bbox_out_dense,
             'bbox_gt_dense': bbox_gt_dense
@@ -256,10 +263,8 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
     def build_loss(self, inp, output):
         s_gt = inp['s_gt'][:, 1:]
-        bbox_out_dense = tf.concat(
-            1, [tf.expand_dims(xx, 1) for xx in output['bbox_out_dense'][1:]])
-        bbox_gt_dense = tf.concat(
-            1, [tf.expand_dims(xx, 1) for xx in output['bbox_gt_dense'][1:]])
+        bbox_out_dense = output['bbox_out_dense']
+        bbox_gt_dense = output['bbox_gt_dense']
         ce = tfplus.nn.CE()({'y_out': bbox_out_dense, 'y_gt': bbox_gt_dense})
         num_ex_f = tf.to_float(self.get_var('num_ex'))
         conv_lstm_height_f = tf.to_float(self.get_var('conv_lstm_height'))

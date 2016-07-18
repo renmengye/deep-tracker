@@ -79,28 +79,35 @@ if __name__ == '__main__':
      # .add_csv_output('Top 5 Accuracy', ['train', 'valid'])
      .add_csv_output('Step Time', ['train'])
      .add_csv_output('Learning Rate', ['train'])
-     .add_plot_output('Input (Train)', 'thumbnail', max_num_col=5)
-     .add_plot_output('Input (Valid)', 'thumbnail', max_num_col=5)
+     .add_plot_output('Input (Train)', 'video', max_num_frame=10,
+                      max_num_col=5)
+     .add_plot_output('GT (Train)', 'video', max_num_frame=10,
+                      max_num_col=5, cmap='jet')
+     .add_plot_output('Output (Train)', 'video', max_num_frame=10,
+                      max_num_col=5, cmap='jet')
+     # .add_plot_output('Input (Valid)', 'thumbnail', max_num_col=5)
+     .add_runner(
+        tfplus.runner.create_from_main('basic')
+        .set_name('plotter_train')
+        .set_outputs(['x_id', 'bbox_gt_dense', 'bbox_out_dense'])
+        .add_plot_listener('Input (Train)', {'x_id': 'images'})
+        .add_plot_listener('GT (Train)', {'bbox_gt_dense': 'images'})
+        .add_plot_listener('Output (Train)', {'bbox_out_dense', : 'images'})
+        .set_data_provider(get_data('train', batch_size=10, cycle=True,
+                                    max_queue_size=10, num_threads=5))
+        .set_phase_train(True)
+        .set_offset(0)       # Every 500 steps (10 min)
+        .set_interval(10))
      # .add_runner(
      #    tfplus.runner.create_from_main('basic')
-     #    .set_name('plotter_train')
+     #    .set_name('plotter_valid')
      #    .set_outputs(['x_trans'])
-     #    .add_plot_listener('Input (Train)', {'x_trans': 'images'})
-     #    .set_data_provider(get_data('train', batch_size=10, cycle=True,
+     #    .add_plot_listener('Input (Valid)', {'x_trans': 'images'})
+     #    .set_data_provider(get_data('valid', batch_size=10, cycle=True,
      #                                max_queue_size=10, num_threads=5))
-     #    .set_phase_train(True)
+     #    .set_phase_train(False)
      #    .set_offset(0)       # Every 500 steps (10 min)
      #    .set_interval(50))
-    # .add_runner(
-    #    tfplus.runner.create_from_main('basic')
-    #    .set_name('plotter_valid')
-    #    .set_outputs(['x_trans'])
-    #    .add_plot_listener('Input (Valid)', {'x_trans': 'images'})
-    #    .set_data_provider(get_data('valid', batch_size=10, cycle=True,
-    #                                max_queue_size=10, num_threads=5))
-    #    .set_phase_train(False)
-    #    .set_offset(0)       # Every 500 steps (10 min)
-    #    .set_interval(50))
      .add_runner(
         tfplus.runner.create_from_main('average')
         .set_name('train')
@@ -115,38 +122,38 @@ if __name__ == '__main__':
         .set_phase_train(True)
         .set_num_batch(10)
         .set_interval(1))
-    #  .add_runner(
-    #     tfplus.runner.create_from_main('saver')
-    #     .set_name('saver')
-    #     .set_interval(100))    # Every 1000 steps (20 min)
-    #  .add_runner(
-    #     tfplus.runner.create_from_main('average')
-    #     .set_name('trainval')
-    #     .set_outputs(['acc', 'top5_acc', 'learn_rate'])
-    #     .add_csv_listener('Top 1 Accuracy', 'acc', 'train')
-    #     .add_cmd_listener('Top 1 Accuracy', 'acc')
-    #     .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'train')
-    #     .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
-    #     .add_csv_listener('Learning Rate', 'learn_rate', 'train')
-    #     .set_data_provider(get_data('train', batch_size=opt['batch_size'],
-    #                                 cycle=True))
-    #     .set_phase_train(False)
-    #     .set_num_batch(10)
-    #     .set_offset(100)
-    #     .set_interval(20))     # Every 200 steps (4 min)
-    # .add_runner(  # Full epoch evaluation on validation set.
-    #    tfplus.runner.create_from_main('average')
-    #    .set_name('valid')
-    #    .set_outputs(['acc', 'top5_acc'])
-    #    .add_csv_listener('Top 1 Accuracy', 'acc', 'valid')
-    #    .add_cmd_listener('Top 1 Accuracy', 'acc')
-    #    .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'valid')
-    #    .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
-    #    .set_data_provider(get_data('valid', batch_size=opt['batch_size'],
-    #                                cycle=True))
-    #    .set_phase_train(False)
-    #    .set_num_batch(50000 / opt['batch_size'])
-    #    .set_offset(100)
-    #    .set_interval(1000))    # Every 10000 steps (200 min)
+     #  .add_runner(
+     #     tfplus.runner.create_from_main('saver')
+     #     .set_name('saver')
+     #     .set_interval(100))    # Every 1000 steps (20 min)
+     #  .add_runner(
+     #     tfplus.runner.create_from_main('average')
+     #     .set_name('trainval')
+     #     .set_outputs(['acc', 'top5_acc', 'learn_rate'])
+     #     .add_csv_listener('Top 1 Accuracy', 'acc', 'train')
+     #     .add_cmd_listener('Top 1 Accuracy', 'acc')
+     #     .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'train')
+     #     .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
+     #     .add_csv_listener('Learning Rate', 'learn_rate', 'train')
+     #     .set_data_provider(get_data('train', batch_size=opt['batch_size'],
+     #                                 cycle=True))
+     #     .set_phase_train(False)
+     #     .set_num_batch(10)
+     #     .set_offset(100)
+     #     .set_interval(20))     # Every 200 steps (4 min)
+     # .add_runner(  # Full epoch evaluation on validation set.
+     #    tfplus.runner.create_from_main('average')
+     #    .set_name('valid')
+     #    .set_outputs(['acc', 'top5_acc'])
+     #    .add_csv_listener('Top 1 Accuracy', 'acc', 'valid')
+     #    .add_cmd_listener('Top 1 Accuracy', 'acc')
+     #    .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'valid')
+     #    .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
+     #    .set_data_provider(get_data('valid', batch_size=opt['batch_size'],
+     #                                cycle=True))
+     #    .set_phase_train(False)
+     #    .set_num_batch(50000 / opt['batch_size'])
+     #    .set_offset(100)
+     #    .set_interval(1000))    # Every 10000 steps (200 min)
      ).run()
     pass
