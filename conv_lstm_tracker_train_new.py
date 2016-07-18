@@ -92,7 +92,7 @@ if __name__ == '__main__':
         .set_outputs(['x_id', 'bbox_gt_dense', 'bbox_out_dense'])
         .add_plot_listener('Input (Train)', {'x_id': 'images'})
         .add_plot_listener('GT (Train)', {'bbox_gt_dense': 'images'})
-        .add_plot_listener('Output (Train)', {'bbox_out_dense', : 'images'})
+        .add_plot_listener('Output (Train)', {'bbox_out_dense': 'images'})
         .set_data_provider(get_data('train', batch_size=10, cycle=True,
                                     max_queue_size=10, num_threads=5))
         .set_phase_train(True)
