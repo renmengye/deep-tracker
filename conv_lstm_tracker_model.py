@@ -262,7 +262,7 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
         }
 
     def build_loss(self, inp, output):
-        s_gt = inp['s_gt'][:, 1:]
+        s_gt = inp['s_gt']
         bbox_out_dense = output['bbox_out_dense']
         bbox_gt_dense = output['bbox_gt_dense']
         ce = tfplus.nn.CE()({'y_out': bbox_out_dense, 'y_gt': bbox_gt_dense})
