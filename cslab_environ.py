@@ -10,6 +10,6 @@ if os.path.exists('/u/mren'):
         pass
     else:
         sys.path.insert(
-            0, '/pkgs/tensorflow-cpu-0.8.0')
+            0, '/pkgs/tensorflow-cpu-0.9.0')
         pass
     pass

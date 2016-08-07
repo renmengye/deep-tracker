@@ -11,27 +11,28 @@ import tensorflow as tf
 import tfplus
 import kitti_new as kitti
 import conv_lstm_tracker_model
+import seg_tracker_model
+import orientation_plotter
 from tfplus.utils import BatchIterator, ConcurrentBatchIterator
 
 tfplus.init('Train a Conv-LSTM tracker on KITTI')
-UID_PREFIX = 'conv_lstm_tracker'
-DATASET = 'kitti_track'
-MODEL_NAME = 'conv_lstm_tracker'
 
 # Main options
 tfplus.cmd_args.add('gpu', 'int', -1)
+tfplus.cmd_args.add('model', 'str', 'seg_tracker')
 tfplus.cmd_args.add('results', 'str', '../results')
 tfplus.cmd_args.add('logs', 'str', '../logs')
 tfplus.cmd_args.add('localhost', 'str', 'http://localhost')
 tfplus.cmd_args.add('restore_model', 'str', None)
 tfplus.cmd_args.add('restore_logs', 'str', None)
-tfplus.cmd_args.add('batch_size', 'int', 4)
+tfplus.cmd_args.add('batch_size', 'int', 8)
 tfplus.cmd_args.add('prefetch', 'bool', False)
-
 opt = tfplus.cmd_args.make()
 
+DATASET = 'kitti_track'
+
 # Initialize logging/saving folder.
-uid = tfplus.nn.model.gen_id(UID_PREFIX)
+uid = tfplus.nn.model.gen_id(opt['model'])
 logs_folder = os.path.join(opt['logs'], uid)
 log = tfplus.utils.logger.get(os.path.join(logs_folder, 'raw'))
 tfplus.utils.LogManager(logs_folder).register('raw', 'plain', 'Raw Logs')
@@ -43,7 +44,7 @@ tf.set_random_seed(1234)
 
 # Initialize model.
 model = (
-    tfplus.nn.model.create_from_main(MODEL_NAME)
+    tfplus.nn.model.create_from_main(opt['model'])
     .set_gpu(opt['gpu'])
     .set_folder(results_folder)
     .restore_options_from(opt['restore_model'])
@@ -74,7 +75,7 @@ def get_data(split, batch_size=4, cycle=True, max_queue_size=10,
     return batch_iter
 
 # Initialize experiment.
-(
+exp = (
     tfplus.experiment.create_from_main('train')
     .set_session(sess)
     .set_model(model)
@@ -86,39 +87,14 @@ def get_data(split, batch_size=4, cycle=True, max_queue_size=10,
 
     .add_csv_output('Step Time', ['train'])
     .add_csv_output('Learning Rate', ['train'])
+    .add_csv_output('GT Switch', ['train'])
 
     .add_plot_output('Input (Train)', 'video', max_num_frame=10,
                      max_num_col=5)
     .add_plot_output('GT (Train)', 'video', max_num_frame=10,
                      max_num_col=5, cmap='jet')
     .add_plot_output('Output (Train)', 'video', max_num_frame=10,
-                     max_num_col=5, cmap='jet')
-
-    # .add_plot_output('Input (Valid)', 'thumbnail', max_num_col=5)
-
-    .add_runner(
-        tfplus.runner.create_from_main('basic')
-        .set_name('plotter_train')
-        .set_outputs(['x_id', 'bbox_gt_dense', 'bbox_out_dense'])
-        .add_plot_listener('Input (Train)', {'x_id': 'images'})
-        .add_plot_listener('GT (Train)', {'bbox_gt_dense': 'images'})
-        .add_plot_listener('Output (Train)', {'bbox_out_dense': 'images'})
-        .set_iter(get_data('train', batch_size=10, cycle=True,
-                           max_queue_size=10, num_threads=5))
-        .set_phase_train(True)
-        .set_offset(0)       # Every 500 steps (10 min)
-        .set_interval(10))
-
-    # .add_runner(
-    #    tfplus.runner.create_from_main('basic')
-    #    .set_name('plotter_valid')
-    #    .set_outputs(['x_trans'])
-    #    .add_plot_listener('Input (Valid)', {'x_trans': 'images'})
-    #    .set_iter(get_data('valid', batch_size=10, cycle=True,
-    #                                max_queue_size=10, num_threads=5))
-    #    .set_phase_train(False)
-    #    .set_offset(0)       # Every 500 steps (10 min)
-    #    .set_interval(50))
+                     max_num_col=25, cmap='jet')
 
     .add_runner(
         tfplus.runner.create_from_main('average')
@@ -137,39 +113,48 @@ def get_data(split, batch_size=4, cycle=True, max_queue_size=10,
         .set_num_batch(10)
         .set_interval(1))
 
-    #  .add_runner(
-    #     tfplus.runner.create_from_main('saver')
-    #     .set_name('saver')
-    #     .set_interval(100))    # Every 1000 steps (20 min)
-    #  .add_runner(
-    #     tfplus.runner.create_from_main('average')
-    #     .set_name('trainval')
-    #     .set_outputs(['acc', 'top5_acc', 'learn_rate'])
-    #     .add_csv_listener('Top 1 Accuracy', 'acc', 'train')
-    #     .add_cmd_listener('Top 1 Accuracy', 'acc')
-    #     .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'train')
-    #     .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
-    #     .add_csv_listener('Learning Rate', 'learn_rate', 'train')
-    #     .set_iter(get_data('train', batch_size=opt['batch_size'],
-    #                                 cycle=True))
-    #     .set_phase_train(False)
-    #     .set_num_batch(10)
-    #     .set_offset(100)
-    #     .set_interval(20))     # Every 200 steps (4 min)
+    .add_runner(
+        tfplus.runner.create_from_main('average')
+        .set_name('trainval')
+        .add_output('gt_switch')
+        .add_csv_listener('GT Switch', 'gt_switch', 'train')
+        .add_cmd_listener('GT Switch', 'gt_switch')
+        .set_iter(get_data('train', batch_size=1, cycle=True))
+        .set_phase_train(False)
+        .set_num_batch(1)
+        .set_interval(10)
+        )
+)
 
-    # .add_runner(  # Full epoch evaluation on validation set.
-    #    tfplus.runner.create_from_main('average')
-    #    .set_name('valid')
-    #    .set_outputs(['acc', 'top5_acc'])
-    #    .add_csv_listener('Top 1 Accuracy', 'acc', 'valid')
-    #    .add_cmd_listener('Top 1 Accuracy', 'acc')
-    #    .add_csv_listener('Top 5 Accuracy', 'top5_acc', 'valid')
-    #    .add_cmd_listener('Top 5 Accuracy', 'top5_acc')
-    #    .set_iter(get_data('valid', batch_size=opt['batch_size'],
-    #                                cycle=True))
-    #    .set_phase_train(False)
-    #    .set_num_batch(50000 / opt['batch_size'])
-    #    .set_offset(100)
-    #    .set_interval(1000))    # Every 10000 steps (200 min)
+runner_plot = (
+    tfplus.runner.create_from_main('basic')
+    .set_name('plotter_train')
+    .set_outputs(['bbox_gt_dense', 'bbox_out_dense'])
+    .add_plot_listener('Input (Train)', {'x': 'images'})
+    .add_plot_listener('GT (Train)', {'bbox_gt_dense': 'images'})
+    .add_plot_listener('Output (Train)', {'bbox_out_dense': 'images'})
+    .set_iter(get_data('train', batch_size=2, cycle=True,
+                       max_queue_size=10, num_threads=1))
+    .set_phase_train(False)
+    .set_offset(0)       # Every 500 steps (10 min)
+    .set_interval(20)
+)
 
-).run()
+if opt['model'] == 'seg_tracker':
+    (
+        exp
+        .add_plot_output('Input FG (Train)', 'video', max_num_frame=2,
+                         max_num_col=10, cmap='jet')
+        .add_plot_output('Input Angle (Train)', 'orientation_video',
+                         max_num_frame=10, max_num_col=5)
+    )
+    (
+        runner_plot
+        .add_plot_listener('Input FG (Train)', {'fg': 'images'})
+        .add_plot_listener('Input Angle (Train)', {'fg': 'foreground',
+                                                   'angle': 'orientation'})
+    )
+
+exp.add_runner(runner_plot)
+
+exp.run()

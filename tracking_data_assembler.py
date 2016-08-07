@@ -7,7 +7,7 @@ import tfplus.utils.progress_bar as pb
 
 class TrackingDataAssembler(object):
     """
-    {video_id}/video/frm_{frame_id}: PNG encoded image
+    {video_id}/video/frm_{frame_id}/image: PNG encoded image
     {video_id}/annotations/obj_{object_id}/bbox: {left, top, right, bottom} * num_valid_frames
     {video_id}/annotations/obj_{object_id}/presence: frame indices of appearance
     """
@@ -54,7 +54,7 @@ class TrackingDataAssembler(object):
                 for frm_id in self.get_frame_ids(vid_id):
                     frm_img = self.get_frame_img(vid_id, frm_id)
                     img_enc = self.encode(frm_img)
-                    frm_key = '{}/video/frm_{}'.format(vid_id, frm_id)
+                    frm_key = '{}/video/frm_{}/image'.format(vid_id, frm_id)
                     self.save(frm_key, img_enc, h5f)
 
                 obj_ids = self.get_obj_ids(vid_id)

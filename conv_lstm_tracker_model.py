@@ -4,12 +4,8 @@ import numpy as np
 import tfplus
 import tensorflow as tf
 
-tfplus.cmd_args.add('ct:inp_depth', 'int', 3)
 tfplus.cmd_args.add('ct:timespan', 'int', 20)
 tfplus.cmd_args.add('ct:weight_decay', 'float', 5e-5)
-tfplus.cmd_args.add('ct:res_net_layers', 'list<int>', [3, 3, 3, 3])
-tfplus.cmd_args.add('ct:res_net_strides', 'list<int>', [1, 2, 2, 2])
-tfplus.cmd_args.add('ct:res_net_channels', 'list<int>', [16, 16, 32, 64, 96])
 tfplus.cmd_args.add('ct:conv_lstm_hid_depth', 'int', 16)
 tfplus.cmd_args.add('ct:conv_lstm_filter_size', 'int', 3)
 tfplus.cmd_args.add('ct:res_net_bottleneck', 'bool', False)
@@ -28,7 +24,6 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
     def __init__(self):
         super(ConvLSTMTrackerModel, self).__init__()
-        self.register_option('ct:inp_depth')
         self.register_option('ct:timespan')
         self.register_option('ct:weight_decay')
         self.register_option('ct:res_net_layers')
@@ -52,10 +47,9 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
     def build_input(self):
         self.init_default_options()
-        inp_depth = self.get_option('ct:inp_depth')
         timespan = self.get_option('ct:timespan')
         x = self.add_input_var(
-            'x', [None, timespan, None, None, inp_depth])
+            'x', [None, timespan, None, None, 3])
         x_id = tf.identity(x)
         self.register_var('x_id', x_id)
         bbox_gt = self.add_input_var(
@@ -72,32 +66,15 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
 
     def init_var(self):
         with tf.device(self.get_device_fn()):
-            inp_depth = self.get_option('ct:inp_depth')
             wd = self.get_option('ct:weight_decay')
-            res_net_layers = self.get_option('ct:res_net_layers')
-            res_net_channels = self.get_option('ct:res_net_channels')
-            res_net_bottleneck = self.get_option('ct:res_net_bottleneck')
-            res_net_shortcut = self.get_option('ct:res_net_shortcut')
-            res_net_strides = self.get_option('ct:res_net_strides')
-
-            self.conv1 = tfplus.nn.Conv2DW(
-                f=7, ch_in=inp_depth * 2 + 1, ch_out=res_net_channels[0], stride=2,
-                wd=wd, scope='conv1', bias=False)
-
-            self.res_net = tfplus.nn.ResNet(layers=res_net_layers,
-                                            bottleneck=res_net_bottleneck,
-                                            shortcut=res_net_shortcut,
-                                            channels=res_net_channels,
-                                            strides=res_net_strides,
-                                            wd=wd)
-
-            conv_lstm_filter_size = self.get_option('ct:conv_lstm_filter_size')
-            conv_lstm_hid_depth = self.get_option('ct:conv_lstm_hid_depth')
-            self.conv_lstm = tfplus.nn.ConvLSTM(filter_size=conv_lstm_filter_size,
-                                                inp_depth=res_net_channels[-1],
-                                                hid_depth=conv_lstm_hid_depth,
+            conv_lstm_ch_in = 6
+            conv_lstm_f_size = self.get_option('ct:conv_lstm_filter_size')
+            conv_lstm_dep = self.get_option('ct:conv_lstm_hid_depth')
+            self.conv_lstm = tfplus.nn.ConvLSTM(filter_size=conv_lstm_f_size,
+                                                inp_depth=conv_lstm_ch_in,
+                                                hid_depth=conv_lstm_dep,
                                                 wd=wd)
-            self.conv2 = tfplus.nn.Conv2DW(f=1, ch_in=conv_lstm_hid_depth,
+            self.conv2 = tfplus.nn.Conv2DW(f=1, ch_in=conv_lstm_dep,
                                            ch_out=1, stride=1, wd=wd,
                                            scope='conv2', bias=True)
         pass
@@ -188,6 +165,7 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
             gt_switch = tf.train.exponential_decay(
                 1.0, step_offset, steps_per_switch_decay, switch_decay,
                 staircase=True)
+            self.register_var('gt_switch', gt_switch)
             gt_prob_switch = tf.to_float(tf.random_uniform(
                 tf.pack([num_ex, timespan, 1, 1]), 0, 1.0) <= gt_switch)
             phase_train_f = tf.to_float(phase_train)
@@ -241,7 +219,7 @@ class ConvLSTMTrackerModel(tfplus.nn.Model):
                 # slice the hidden state out
                 h_lstm = tf.slice(conv_lstm_state, [0, 0, 0, conv_lstm_hid_depth],
                                   [-1, -1, -1, conv_lstm_hid_depth])
-                bbox_out_dense[tt] = self.conv2(h_lstm)
+                bbox_out_dense[tt] = tf.sigmoid(self.conv2(h_lstm))
 
                 # Need to regress score? Not for now maybe...
 

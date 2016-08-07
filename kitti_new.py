@@ -21,7 +21,7 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         if output_fname is None:
             output_fname = os.path.join(folder, '{}.h5'.format(split))
 
-        if split == 'train' or 'valid' or 'train_all':
+        if split == 'train' or split == 'valid' or split == 'train_all':
             self.left_folder = os.path.join(folder, 'training', 'image_02')
             self.label_folder = os.path.join(folder, 'training', 'label_02')
         elif split == 'test':
@@ -30,7 +30,6 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
         else:
             raise Exception('Unknown split "{}"'.format(split))
         self.anns = {}
-
         super(KITTITrackingDataAssembler, self).__init__(output_fname)
         pass
 
@@ -57,7 +56,8 @@ class KITTITrackingDataAssembler(TrackingDataAssembler):
 
     def _read_annotations(self, vid_id):
         label_fname = os.path.join(self.label_folder, vid_id + '.txt')
-        target_types = set(['Van', 'Car', 'Truck'])
+        # target_types = set(['Van', 'Car', 'Truck'])
+        target_types = set(['Car'])
         obj_data = {}
         idx_map = []
         frame_start = None
@@ -157,15 +157,17 @@ tfplus.data.data_provider.register('kitti_track', KITTITrackingDataProvider)
 
 if __name__ == '__main__':
     # for split in ['train', 'valid']:
-    #     # for split in ['train', 'valid', 'test']:
-    #     assembler = KITTITrackingDataAssembler(
-    #         '/ais/gobi4/mren/data/kitti/tracking', split=split)
-    #     assembler.assemble()
-    # pass
-    b = tfplus.data.create_from_main('kitti_track').get_batch_idx(np.arange(5))
-    print b['x'].shape
-    print b['x']
-    print b['bbox_gt'].shape
-    print b['bbox_gt']
-    print b['s_gt'].shape
-    print b['s_gt']
+    # for split in ['train', 'valid', 'test']:
+    for split in ['train', 'test']:
+        assembler = KITTITrackingDataAssembler(
+            '/ais/gobi4/mren/data/kitti/tracking', split=split)
+        # print assembler.get_frame_ids('0017')
+        assembler.assemble()
+    pass
+    # b = tfplus.data.create_from_main('kitti_track').get_batch_idx(np.arange(5))
+    # print b['x'].shape
+    # print b['x']
+    # print b['bbox_gt'].shape
+    # print b['bbox_gt']
+    # print b['s_gt'].shape
+    # print b['s_gt']
