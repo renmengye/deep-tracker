@@ -94,7 +94,7 @@ exp = (
     .add_plot_output('GT (Train)', 'video', max_num_frame=10,
                      max_num_col=5, cmap='jet')
     .add_plot_output('Output (Train)', 'video', max_num_frame=10,
-                     max_num_col=25, cmap='jet')
+                     max_num_col=5, cmap='jet')
 
     .add_runner(
         tfplus.runner.create_from_main('average')
@@ -108,7 +108,7 @@ exp = (
         .add_cmd_listener('Loss', 'loss')
         .add_cmd_listener('Step Time', 'step_time')
         .set_iter(get_data('train', batch_size=opt['batch_size'],
-                           cycle=True))
+                           cycle=True, max_queue_size=10, num_threads=10))
         .set_phase_train(True)
         .set_num_batch(10)
         .set_interval(1))
@@ -119,11 +119,12 @@ exp = (
         .add_output('gt_switch')
         .add_csv_listener('GT Switch', 'gt_switch', 'train')
         .add_cmd_listener('GT Switch', 'gt_switch')
-        .set_iter(get_data('train', batch_size=1, cycle=True))
+        .set_iter(get_data('train', batch_size=1, cycle=True,
+                           max_queue_size=1, num_threads=1))
         .set_phase_train(False)
         .set_num_batch(1)
-        .set_interval(10)
-        )
+        .set_interval(50)
+    )
 )
 
 runner_plot = (
@@ -134,17 +135,17 @@ runner_plot = (
     .add_plot_listener('GT (Train)', {'bbox_gt_dense': 'images'})
     .add_plot_listener('Output (Train)', {'bbox_out_dense': 'images'})
     .set_iter(get_data('train', batch_size=2, cycle=True,
-                       max_queue_size=10, num_threads=1))
+                       max_queue_size=1, num_threads=1))
     .set_phase_train(False)
-    .set_offset(0)       # Every 500 steps (10 min)
-    .set_interval(20)
+    .set_offset(0)
+    .set_interval(20)       # Every 200 steps
 )
 
 if opt['model'] == 'seg_tracker':
     (
         exp
-        .add_plot_output('Input FG (Train)', 'video', max_num_frame=2,
-                         max_num_col=10, cmap='jet')
+        .add_plot_output('Input FG (Train)', 'video', max_num_frame=10,
+                         max_num_col=5, cmap='jet')
         .add_plot_output('Input Angle (Train)', 'orientation_video',
                          max_num_frame=10, max_num_col=5)
     )
